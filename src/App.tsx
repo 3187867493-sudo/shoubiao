@@ -1,1739 +1,1808 @@
-import { useState } from 'react'
+import { useMemo, useState, type ReactNode } from "react"
 
-// ─── Design Tokens ───────────────────────────────────────────────────────────
-const C = {
-  bg: '#F4F1EC',
-  card: '#FFFFFF',
-  primary: '#1B4D3E',
-  primaryMid: '#2D6A4F',
-  mint: '#52B788',
-  mintLight: '#D8F3DC',
-  orange: '#E76F51',
-  orangeLight: '#FEF0E7',
-  red: '#D62828',
-  redLight: '#FDEDEC',
-  muted: '#8BA898',
-  mutedLight: '#EEF5F0',
-  text: '#1A2E22',
-  textMid: '#4A6B57',
-  textMuted: '#8BA898',
-  border: 'rgba(27,77,62,0.12)',
-  borderMid: 'rgba(27,77,62,0.22)',
+type Screen = "splash" | "onboarding" | "watchConnect" | "home" | "conversation" | "multi" | "callout" | "service" | "history" | "profile" | "vibration" | "preferences" | "watchPreview"
+
+type Tab = "home" | "conversation" | "service" | "profile"
+type Priority = "P1" | "P2" | "P3" | "P4"
+type IconName = "pulse" | "home" | "message" | "service" | "user" | "watch" | "battery" | "chevron" | "arrowLeft" | "arrowUpRight" | "volume" | "car" | "ticket" | "bell" | "music" | "mic" | "spark" | "history" | "settings" | "shield" | "type" | "vibrate" | "check" | "pause" | "play" | "refresh" | "send" | "close" | "eye" | "lock" | "summary"
+
+const priorityMeta: Record<Priority, {
+  label: string
+  detail: string
+  icon: IconName
+}> = {
+  P1: { label: "紧急", detail: "需要立即注意", icon: "bell" },
+  P2: { label: "与我相关", detail: "需要及时回应", icon: "spark" },
+  P3: { label: "当前对话", detail: "正在发生", icon: "message" },
+  P4: { label: "环境氛围", detail: "可稍后查看", icon: "music" },
 }
 
-type Screen =
-  | 'splash' | 'onboarding' | 'watchConnect'
-  | 'hear' | 'realtime' | 'multi' | 'callout'
-  | 'communicate' | 'record' | 'profile'
-  | 'vibSettings' | 'personalSettings' | 'watchPreview'
-
-type Tab = 'hear' | 'communicate' | 'record' | 'profile'
-
-// ─── Shared Components ────────────────────────────────────────────────────────
-
-function StatusBar({ light }: { light?: boolean }) {
-  const col = light ? 'rgba(255,255,255,0.8)' : C.textMuted
-  return (
-    <div style={{
-      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-      padding: '14px 24px 6px', fontSize: 12, fontWeight: 600, color: col, flexShrink: 0,
-    }}>
-      <span>9:41</span>
-      <span style={{ letterSpacing: 1 }}>●●● WiFi 🔋</span>
-    </div>
-  )
-}
-
-function NavBar({ title, onBack, light }: { title: string; onBack?: () => void; light?: boolean }) {
-  const col = light ? 'white' : C.text
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', padding: '6px 20px 12px', flexShrink: 0 }}>
-      {onBack && (
-        <button onClick={onBack} style={{
-          background: 'none', border: 'none', cursor: 'pointer', color: col,
-          fontSize: 26, marginRight: 6, padding: 0, lineHeight: 1, opacity: 0.8,
-        }}>‹</button>
-      )}
-      <span style={{ fontSize: 17, fontWeight: 700, color: col }}>{title}</span>
-    </div>
-  )
-}
-
-function BottomNav({ tab, setTab, setScreen }: {
-  tab: Tab; setTab: (t: Tab) => void; setScreen: (s: Screen) => void
+function Icon({
+  name,
+  size = 22,
+  strokeWidth = 1.8,
+}: {
+  name: IconName
+  size?: number
+  strokeWidth?: number
 }) {
-  const tabs: { id: Tab; icon: React.ReactNode; label: string }[] = [
-    {
-      id: 'hear', label: '听见',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" width={22} height={22} stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-          <path d="M2 12h2" /><path d="M6 8v8" /><path d="M10 5v14" />
-          <path d="M14 8v8" /><path d="M18 10v4" /><path d="M22 12h-2" />
-        </svg>
-      ),
-    },
-    {
-      id: 'communicate', label: '沟通',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" width={22} height={22} stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-      ),
-    },
-    {
-      id: 'record', label: '记录',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" width={22} height={22} stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-          <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-        </svg>
-      ),
-    },
-    {
-      id: 'profile', label: '我的',
-      icon: (
-        <svg viewBox="0 0 24 24" fill="none" width={22} height={22} stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-      ),
-    },
-  ]
-  const screenMap: Record<Tab, Screen> = {
-    hear: 'hear', communicate: 'communicate', record: 'record', profile: 'profile',
+  const paths: Record<IconName, ReactNode> = {
+    pulse: (
+      <>
+        <path d="M3 12h3l1.7-4.5L11 17l2.7-10 2.1 5H21" />
+        <circle cx="12" cy="12" r="9" opacity=".2" />
+      </>
+    ),
+    home: (
+      <>
+        <path d="m3 10 9-7 9 7" />
+        <path d="M5.5 9.5V21h13V9.5" />
+        <path d="M9.5 21v-7h5v7" />
+      </>
+    ),
+    message: (
+      <>
+        <path d="M21 14.5a4 4 0 0 1-4 4H9l-6 3v-14a4 4 0 0 1 4-4h10a4 4 0 0 1 4 4z" />
+        <path d="M8 9h8M8 13h5" />
+      </>
+    ),
+    service: (
+      <>
+        <path d="M4 7h16v12H4z" />
+        <path d="M7 7V4h10v3M8 12h8M8 15h5" />
+      </>
+    ),
+    user: (
+      <>
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4.5 21a7.5 7.5 0 0 1 15 0" />
+      </>
+    ),
+    watch: (
+      <>
+        <rect x="6" y="5" width="12" height="14" rx="4" />
+        <path d="M9 5V2h6v3M9 19v3h6v-3" />
+        <path d="M9.5 10.5h5M9.5 13.5h3" />
+      </>
+    ),
+    battery: (
+      <>
+        <rect x="3" y="7" width="17" height="10" rx="2" />
+        <path d="M22 10v4" />
+        <path d="M6 10h9v4H6z" />
+      </>
+    ),
+    chevron: <path d="m9 18 6-6-6-6" />,
+    arrowLeft: (
+      <>
+        <path d="m15 18-6-6 6-6" />
+        <path d="M9 12h11" />
+      </>
+    ),
+    arrowUpRight: (
+      <>
+        <path d="M7 17 17 7" />
+        <path d="M8 7h9v9" />
+      </>
+    ),
+    volume: (
+      <>
+        <path d="M5 10H2v4h3l5 4V6z" />
+        <path d="M14 9a4 4 0 0 1 0 6M17 6a8 8 0 0 1 0 12" />
+      </>
+    ),
+    car: (
+      <>
+        <path d="m4 15 1.5-6h13L20 15" />
+        <path d="M3 15h18v4H3z" />
+        <circle cx="7" cy="19" r="1.5" />
+        <circle cx="17" cy="19" r="1.5" />
+      </>
+    ),
+    ticket: (
+      <>
+        <path d="M4 5h16v5a2 2 0 0 0 0 4v5H4v-5a2 2 0 0 0 0-4z" />
+        <path d="M12 8v8" />
+      </>
+    ),
+    bell: (
+      <>
+        <path d="M18 8a6 6 0 0 0-12 0c0 7-3 7-3 9h18c0-2-3-2-3-9" />
+        <path d="M10 21h4" />
+      </>
+    ),
+    music: (
+      <>
+        <path d="M9 18V5l10-2v13" />
+        <circle cx="6" cy="18" r="3" />
+        <circle cx="16" cy="16" r="3" />
+      </>
+    ),
+    mic: (
+      <>
+        <rect x="9" y="3" width="6" height="12" rx="3" />
+        <path d="M5 11a7 7 0 0 0 14 0M12 18v3M9 21h6" />
+      </>
+    ),
+    spark: (
+      <>
+        <path d="m12 3 1.4 4.4L18 9l-4.6 1.6L12 15l-1.4-4.4L6 9l4.6-1.6z" />
+        <path d="m19 15 .7 2.3L22 18l-2.3.7L19 21l-.7-2.3L16 18l2.3-.7z" />
+      </>
+    ),
+    history: (
+      <>
+        <path d="M3 12a9 9 0 1 0 3-6.7L3 8" />
+        <path d="M3 3v5h5M12 7v5l3 2" />
+      </>
+    ),
+    settings: (
+      <>
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1-2.8 2.8-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6v.2h-4V21a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1L4.2 17l.1-.1a1.7 1.7 0 0 0 .3-1.9A1.7 1.7 0 0 0 3 14H2.8v-4H3a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9L4.2 7 7 4.2l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6v-.2h4V3a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1L19.8 7l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.2v4H21a1.7 1.7 0 0 0-1.6 1Z" />
+      </>
+    ),
+    shield: (
+      <>
+        <path d="M12 3 20 6v5c0 5-3.4 8.6-8 10-4.6-1.4-8-5-8-10V6z" />
+        <path d="m9 12 2 2 4-4" />
+      </>
+    ),
+    type: (
+      <>
+        <path d="M4 5h16M9 5v14M15 5v14M7 19h10" />
+      </>
+    ),
+    vibrate: (
+      <>
+        <rect x="8" y="4" width="8" height="16" rx="2" />
+        <path d="M4.5 8a6 6 0 0 0 0 8M2 6a9 9 0 0 0 0 12M19.5 8a6 6 0 0 1 0 8M22 6a9 9 0 0 1 0 12" />
+      </>
+    ),
+    check: <path d="m5 12 4 4L19 6" />,
+    pause: (
+      <>
+        <path d="M9 5v14M15 5v14" />
+      </>
+    ),
+    play: <path d="m8 5 11 7-11 7z" />,
+    refresh: (
+      <>
+        <path d="M20 7V3h-4" />
+        <path d="M20 3a9 9 0 1 0 1 10" />
+      </>
+    ),
+    send: (
+      <>
+        <path d="m22 2-7 20-4-9-9-4z" />
+        <path d="M22 2 11 13" />
+      </>
+    ),
+    close: (
+      <>
+        <path d="m6 6 12 12M18 6 6 18" />
+      </>
+    ),
+    eye: (
+      <>
+        <path d="M2 12s3.5-6 10-6 10 6 10 6-3.5 6-10 6S2 12 2 12" />
+        <circle cx="12" cy="12" r="2.5" />
+      </>
+    ),
+    lock: (
+      <>
+        <rect x="5" y="10" width="14" height="11" rx="2" />
+        <path d="M8 10V7a4 4 0 0 1 8 0v3" />
+      </>
+    ),
+    summary: (
+      <>
+        <path d="M5 4h14v16H5z" />
+        <path d="M8 8h8M8 12h8M8 16h5" />
+      </>
+    ),
   }
+
   return (
-    <div style={{
-      display: 'flex', borderTop: `1px solid ${C.border}`,
-      background: 'rgba(244,241,236,0.97)', backdropFilter: 'blur(16px)',
-      paddingBottom: 24, flexShrink: 0,
-    }}>
-      {tabs.map(t => (
-        <button key={t.id}
-          onClick={() => { setTab(t.id); setScreen(screenMap[t.id]) }}
-          style={{
-            flex: 1, padding: '10px 0 0', border: 'none', background: 'none',
-            cursor: 'pointer', display: 'flex', flexDirection: 'column',
-            alignItems: 'center', gap: 3,
-            color: tab === t.id ? C.primary : C.textMuted,
-            transition: 'color 0.15s',
-          }}>
-          {t.icon}
-          <span style={{ fontSize: 10, fontWeight: tab === t.id ? 700 : 400 }}>{t.label}</span>
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 24 24"
+      width={size}
+      height={size}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={strokeWidth}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+    >
+      {paths[name]}
+    </svg>
+  )
+}
+
+function PulseMark({ inverse = false }: { inverse?: boolean }) {
+  return (
+    <span
+      className={`pulse-mark ${inverse ? "pulse-mark--inverse" : ""}`}
+      aria-hidden="true"
+    >
+      <i />
+      <i />
+      <i />
+    </span>
+  )
+}
+
+function StatusBar({ inverse = false }: { inverse?: boolean }) {
+  return (
+    <div className={`status-bar ${inverse ? "status-bar--inverse" : ""}`}>
+      <span>9:41</span>
+      <span className="status-icons">
+        <i /> <i /> <Icon name="battery" size={17} />
+      </span>
+    </div>
+  )
+}
+
+function AppHeader({
+  title,
+  eyebrow,
+  onBack,
+  action,
+}: {
+  title: string
+  eyebrow?: string
+  onBack?: () => void
+  action?: ReactNode
+}) {
+  return (
+    <header className="app-header">
+      <div className="app-header__side">
+        {onBack ? (
+          <button className="icon-button" onClick={onBack} aria-label="返回">
+            <Icon name="arrowLeft" />
+          </button>
+        ) : (
+          <PulseMark />
+        )}
+      </div>
+      <div className="app-header__title">
+        {eyebrow && <span>{eyebrow}</span>}
+        <h1>{title}</h1>
+      </div>
+      <div className="app-header__side app-header__side--end">{action}</div>
+    </header>
+  )
+}
+
+function PriorityBadge({
+  level,
+  compact = false,
+}: {
+  level: Priority
+  compact?: boolean
+}) {
+  const item = priorityMeta[level]
+  return (
+    <span
+      className={`priority-badge priority-badge--${level.toLowerCase()} ${
+        compact ? "priority-badge--compact" : ""
+      }`}
+    >
+      <Icon name={item.icon} size={13} />
+      {level} · {item.label}
+    </span>
+  )
+}
+
+function Toggle({
+  checked,
+  onChange,
+  label,
+}: {
+  checked: boolean
+  onChange: () => void
+  label: string
+}) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={checked}
+      aria-label={label}
+      className={`toggle ${checked ? "is-on" : ""}`}
+      onClick={onChange}
+    >
+      <span />
+    </button>
+  )
+}
+
+function Page({
+  children,
+  className = "",
+}: {
+  children: ReactNode
+  className?: string
+}) {
+  return <main className={`page ${className}`}>{children}</main>
+}
+
+function BottomNav({
+  tab,
+  onChange,
+}: {
+  tab: Tab
+  onChange: (tab: Tab) => void
+}) {
+  const items: Array<{ id: Tab; label: string; icon: IconName }> = [
+    { id: "home", label: "首页", icon: "home" },
+    { id: "conversation", label: "对话", icon: "message" },
+    { id: "service", label: "服务", icon: "service" },
+    { id: "profile", label: "设置", icon: "user" },
+  ]
+  return (
+    <nav className="bottom-nav" aria-label="主要导航">
+      {items.map((item) => (
+        <button
+          key={item.id}
+          className={tab === item.id ? "is-active" : ""}
+          onClick={() => onChange(item.id)}
+        >
+          <Icon name={item.icon} />
+          <span>{item.label}</span>
         </button>
       ))}
-    </div>
+    </nav>
   )
 }
-
-function Toggle({ on, onChange }: { on: boolean; onChange: () => void }) {
-  return (
-    <div onClick={onChange} style={{
-      width: 44, height: 26, borderRadius: 13,
-      background: on ? C.primary : '#D1D8D4',
-      position: 'relative', cursor: 'pointer', flexShrink: 0, transition: 'background 0.2s',
-    }}>
-      <div style={{
-        position: 'absolute', top: 3, left: on ? 21 : 3,
-        width: 20, height: 20, borderRadius: '50%', background: 'white',
-        transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)',
-      }} />
-    </div>
-  )
-}
-
-function PBadge({ level }: { level: 'P1' | 'P2' | 'P3' | 'P4' }) {
-  const cfg = {
-    P1: { bg: C.red, label: 'P1 紧急' },
-    P2: { bg: C.orange, label: 'P2 重要' },
-    P3: { bg: C.mint, label: 'P3 对话' },
-    P4: { bg: C.muted, label: 'P4 环境' },
-  }[level]
-  return (
-    <span style={{
-      background: cfg.bg, color: 'white', fontSize: 9, fontWeight: 700,
-      padding: '2px 7px', borderRadius: 4, letterSpacing: 0.3,
-    }}>{cfg.label}</span>
-  )
-}
-
-// ─── Screens ──────────────────────────────────────────────────────────────────
 
 function SplashScreen({ onNext }: { onNext: () => void }) {
   return (
-    <div onClick={onNext} style={{
-      flex: 1, background: C.primary, display: 'flex', flexDirection: 'column',
-      alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: '0 48px',
-    }}>
-      {/* Logo rings + core */}
-      <div style={{ position: 'relative', width: 104, height: 104, marginBottom: 40 }}>
-        {[0, 1, 2].map(i => (
-          <div key={i} style={{
-            position: 'absolute',
-            inset: -(i + 1) * 14,
-            borderRadius: '50%',
-            border: `1px solid ${C.mint}`,
-            opacity: 0.15 + i * 0.05,
-          }} />
-        ))}
-        <div style={{
-          width: 104, height: 104, borderRadius: '50%',
-          background: 'rgba(82,183,136,0.18)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          <div style={{
-            width: 72, height: 72, borderRadius: '50%', background: C.mint,
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-          }}>
-            <svg viewBox="0 0 24 24" fill="none" width={32} height={32}
-              stroke="white" strokeWidth={2.5} strokeLinecap="round">
-              <path d="M2 12h2" /><path d="M6 8v8" /><path d="M10 5v14" />
-              <path d="M14 8v8" /><path d="M18 10v4" /><path d="M22 12h-2" />
-            </svg>
-          </div>
-        </div>
+    <button className="splash" onClick={onNext} aria-label="进入声脉">
+      <div className="splash__lattice" />
+      <div className="splash__mark">
+        <PulseMark inverse />
       </div>
-
-      <div style={{ textAlign: 'center', color: 'white', marginBottom: 56 }}>
-        <div style={{ fontSize: 38, fontWeight: 700, letterSpacing: 5, marginBottom: 6 }}>声脉</div>
-        <div style={{
-          fontSize: 13, letterSpacing: 7, color: C.mint, marginBottom: 40,
-          fontFamily: 'DM Mono, monospace',
-        }}>SOUNDPULSE</div>
-        <div style={{
-          width: 40, height: 1, background: 'rgba(255,255,255,0.15)',
-          margin: '0 auto 24px',
-        }} />
-        <div style={{ fontSize: 14, lineHeight: 2.1, color: 'rgba(255,255,255,0.55)', fontWeight: 300 }}>
-          不制造新的设备<br />
-          重新组织已经存在的<br />
-          声音与触觉
-        </div>
+      <div className="splash__copy">
+        <span className="splash__eyebrow">声 · 触 · 行</span>
+        <h1>声脉</h1>
+        <p>SoundPulse</p>
+        <div className="splash__rule" />
+        <blockquote>
+          把重要的声音，
+          <br />
+          变成触手可及的信息。
+        </blockquote>
       </div>
-
-      <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.25)', letterSpacing: 2 }}>
-        轻触屏幕 · 开始
-      </div>
-    </div>
+      <span className="splash__hint">
+        轻触进入 <Icon name="arrowUpRight" size={15} />
+      </span>
+    </button>
   )
 }
 
 function OnboardingScreen({ onComplete }: { onComplete: () => void }) {
   const [step, setStep] = useState(0)
-  const [userType, setUserType] = useState('deaf')
-  const [fontSize, setFontSize] = useState(1)
+  const [profile, setProfile] = useState("deaf")
+  const [fontSize, setFontSize] = useState("中")
   const [highContrast, setHighContrast] = useState(false)
-  const [sounds, setSounds] = useState(['vehicles', 'announcements', 'callout'])
-
-  const soundTypes = [
-    { id: 'vehicles', icon: '🚗', label: '车辆鸣笛' },
-    { id: 'announcements', icon: '📢', label: '公共广播' },
-    { id: 'callout', icon: '🔔', label: '叫号叫名' },
-    { id: 'alarms', icon: '🚨', label: '警报声' },
-    { id: 'music', icon: '🎵', label: '音乐表演' },
-    { id: 'conversation', icon: '💬', label: '日常对话' },
+  const [sounds, setSounds] = useState(["叫号与广播", "车辆鸣笛", "多人对话"])
+  const titles = [
+    ["先认识你的需要", "只选择真正需要被提醒的声音"],
+    ["让信息更好读", "字号、对比度和节奏都可以调整"],
+    ["声音留在设备上", "默认本地处理，不保存原始录音"],
   ]
-
-  const steps = [
-    { title: '您的使用需求', sub: '帮助我们为您优化声音识别体验' },
-    { title: '显示偏好', sub: '选择最适合您的字幕显示方式' },
-    { title: '麦克风授权', sub: '声脉需要麦克风权限才能识别周围声音' },
+  const soundOptions = [
+    "叫号与广播",
+    "车辆鸣笛",
+    "警报提醒",
+    "多人对话",
+    "音乐表演",
+    "生活提示",
   ]
 
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg }}>
+    <Page className="onboarding-page">
       <StatusBar />
-      <div style={{ padding: '12px 24px 0', flexShrink: 0 }}>
-        <div style={{ display: 'flex', gap: 6, marginBottom: 22 }}>
-          {[0, 1, 2].map(i => (
-            <div key={i} style={{
-              flex: 1, height: 3, borderRadius: 2,
-              background: i <= step ? C.primary : C.border, transition: 'background 0.3s',
-            }} />
+      <section className="onboarding-head">
+        <div className="step-track">
+          {[0, 1, 2].map((item) => (
+            <span key={item} className={item <= step ? "is-active" : ""} />
           ))}
         </div>
-        <div style={{ fontSize: 22, fontWeight: 700, color: C.text, marginBottom: 4 }}>{steps[step].title}</div>
-        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 22 }}>{steps[step].sub}</div>
-      </div>
+        <span className="section-kicker">初次设置 · {step + 1}/3</span>
+        <h1>{titles[step][0]}</h1>
+        <p>{titles[step][1]}</p>
+      </section>
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 24px' }}>
+      <section className="onboarding-body">
         {step === 0 && (
-          <div>
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 10 }}>我主要是</div>
-            {[
-              { id: 'deaf', label: '听障人士', sub: '需要完整的声音信息辅助' },
-              { id: 'hard', label: '听力困难', sub: '在嘈杂环境中需要额外帮助' },
-              { id: 'normal', label: '听力正常', sub: '在特定场合使用辅助功能' },
-            ].map(opt => (
-              <div key={opt.id} onClick={() => setUserType(opt.id)} style={{
-                background: userType === opt.id ? C.mintLight : C.card,
-                borderRadius: 14, padding: '14px 16px',
-                border: `1.5px solid ${userType === opt.id ? C.primary : C.border}`,
-                marginBottom: 8, cursor: 'pointer',
-              }}>
-                <div style={{ fontSize: 15, fontWeight: 500, color: C.text }}>{opt.label}</div>
-                <div style={{ fontSize: 12, color: C.textMuted, marginTop: 2 }}>{opt.sub}</div>
-              </div>
-            ))}
-            <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, margin: '20px 0 10px' }}>
-              重点关注的声音类型
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
-              {soundTypes.map(s => (
-                <button key={s.id} onClick={() => setSounds(prev =>
-                  prev.includes(s.id) ? prev.filter(x => x !== s.id) : [...prev, s.id]
-                )} style={{
-                  display: 'flex', alignItems: 'center', gap: 6,
-                  padding: '8px 14px', borderRadius: 20,
-                  border: `1.5px solid ${sounds.includes(s.id) ? C.primary : C.border}`,
-                  background: sounds.includes(s.id) ? C.mintLight : C.card,
-                  color: sounds.includes(s.id) ? C.primary : C.textMid,
-                  cursor: 'pointer', fontSize: 13, fontWeight: 500,
-                }}>
-                  <span>{s.icon}</span><span>{s.label}</span>
+          <>
+            <div className="choice-stack">
+              {[
+                ["deaf", "听障人士", "需要完整、稳定的信息辅助"],
+                ["hard", "听力困难", "在复杂环境中需要重点提醒"],
+                ["support", "陪伴者或工作人员", "协助建立更友好的沟通环境"],
+              ].map(([id, label, detail]) => (
+                <button
+                  key={id}
+                  onClick={() => setProfile(id)}
+                  className={`choice-row ${
+                    profile === id ? "is-selected" : ""
+                  }`}
+                >
+                  <span className="choice-row__radio">
+                    {profile === id && <i />}
+                  </span>
+                  <span>
+                    <strong>{label}</strong>
+                    <small>{detail}</small>
+                  </span>
                 </button>
               ))}
             </div>
-          </div>
-        )}
-
-        {step === 1 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-            <div>
-              <div style={{ fontSize: 12, fontWeight: 600, color: C.textMuted, marginBottom: 10 }}>字幕字号</div>
-              <div style={{ display: 'flex', gap: 8 }}>
-                {(['小', '中', '大'] as const).map((s, i) => (
-                  <button key={i} onClick={() => setFontSize(i)} style={{
-                    flex: 1, padding: '16px 0', borderRadius: 12,
-                    border: `1.5px solid ${fontSize === i ? C.primary : C.border}`,
-                    background: fontSize === i ? C.mintLight : C.card,
-                    color: fontSize === i ? C.primary : C.textMid,
-                    fontSize: [13, 16, 20][i], fontWeight: 500, cursor: 'pointer',
-                  }}>{s}</button>
+            <div className="field-group">
+              <span className="field-label">重点关注的声音</span>
+              <div className="chip-grid">
+                {soundOptions.map((sound) => (
+                  <button
+                    key={sound}
+                    className={sounds.includes(sound) ? "is-selected" : ""}
+                    onClick={() =>
+                      setSounds((current) =>
+                        current.includes(sound)
+                          ? current.filter((item) => item !== sound)
+                          : [...current, sound],
+                      )
+                    }
+                  >
+                    {sound}
+                  </button>
                 ))}
               </div>
             </div>
-            <div style={{
-              background: highContrast ? '#111' : C.card, borderRadius: 16, padding: 20,
-              border: `1px solid ${C.border}`,
-            }}>
-              <div style={{ fontSize: 10, color: C.muted, marginBottom: 8, fontFamily: 'DM Mono, monospace' }}>
-                字幕预览
+          </>
+        )}
+
+        {step === 1 && (
+          <>
+            <div
+              className={`caption-preview ${highContrast ? "is-contrast" : ""}`}
+            >
+              <div className="caption-preview__meta">
+                <span className="speaker-glyph">工</span>
+                <span>工作人员 · 右前方</span>
+                <PriorityBadge level="P2" compact />
               </div>
-              <div style={{
-                fontSize: [15, 18, 22][fontSize], fontWeight: 400, lineHeight: 1.6,
-                color: highContrast ? 'white' : C.text,
-              }}>
-                您好，请问您需要什么帮助？
-              </div>
-              <div style={{
-                fontSize: [11, 13, 16][fontSize], color: highContrast ? '#888' : C.textMuted, marginTop: 4,
-              }}>
-                工作人员 · 右前方 · 3秒前
-              </div>
+              <p className={`font-${fontSize}`}>请到 18 号窗口办理。</p>
+              <small>刚刚 · 识别置信度 96%</small>
             </div>
-            <div style={{
-              display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-              background: C.card, borderRadius: 14, padding: '14px 16px', border: `1px solid ${C.border}`,
-            }}>
+            <div className="setting-card">
               <div>
-                <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>高对比度</div>
-                <div style={{ fontSize: 12, color: C.textMuted }}>深色背景，白色字幕</div>
+                <span className="field-label">字幕字号</span>
+                <p>手表只显示关键句，手机保留完整内容。</p>
               </div>
-              <Toggle on={highContrast} onChange={() => setHighContrast(!highContrast)} />
+              <div className="segmented">
+                {["小", "中", "大"].map((size) => (
+                  <button
+                    key={size}
+                    className={fontSize === size ? "is-active" : ""}
+                    onClick={() => setFontSize(size)}
+                  >
+                    {size}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
+            <div className="setting-row">
+              <div className="setting-row__icon">
+                <Icon name="eye" />
+              </div>
+              <div>
+                <strong>高对比显示</strong>
+                <small>使用深色字幕底和更清晰的边界</small>
+              </div>
+              <Toggle
+                checked={highContrast}
+                onChange={() => setHighContrast(!highContrast)}
+                label="高对比显示"
+              />
+            </div>
+          </>
         )}
 
         {step === 2 && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 16, alignItems: 'center' }}>
-            <div style={{
-              width: 80, height: 80, borderRadius: '50%', background: C.mintLight,
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <svg viewBox="0 0 24 24" fill="none" width={38} height={38}
-                stroke={C.primary} strokeWidth={2} strokeLinecap="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
+          <>
+            <div className="privacy-seal">
+              <Icon name="shield" size={38} />
+              <i />
             </div>
-            <div style={{ textAlign: 'center' }}>
-              <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 8 }}>麦克风权限</div>
-              <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.8 }}>
-                声脉在您的设备本地处理声音<br />
-                不会将录音上传至服务器<br />
-                麦克风仅在识别功能开启时使用
+            <div className="privacy-copy">
+              <h2>尊重声音，也尊重隐私</h2>
+              <p>
+                麦克风仅在你主动开启识别时工作。原始声音默认不上传、不留存。
+              </p>
+            </div>
+            <div className="privacy-list">
+              <div>
+                <Icon name="lock" />
+                <span>
+                  <strong>优先本地处理</strong>
+                  <small>语音仅用于即时识别</small>
+                </span>
+              </div>
+              <div>
+                <Icon name="history" />
+                <span>
+                  <strong>仅保存文字事件</strong>
+                  <small>可随时清除历史记录</small>
+                </span>
+              </div>
+              <div>
+                <Icon name="pause" />
+                <span>
+                  <strong>一键暂停</strong>
+                  <small>由你决定何时开始和结束</small>
+                </span>
               </div>
             </div>
-            <div style={{
-              background: C.card, borderRadius: 16, padding: 16,
-              border: `1px solid ${C.border}`, width: '100%',
-            }}>
-              {[
-                { icon: '🔒', text: '本地处理，不上传声音' },
-                { icon: '⏱', text: '临时字幕，默认24小时自动删除' },
-                { icon: '🔕', text: '您可随时关闭识别功能' },
-              ].map((item, i) => (
-                <div key={i} style={{
-                  display: 'flex', gap: 12, alignItems: 'center',
-                  paddingBottom: i < 2 ? 12 : 0, marginBottom: i < 2 ? 12 : 0,
-                  borderBottom: i < 2 ? `1px solid ${C.border}` : 'none',
-                }}>
-                  <span style={{ fontSize: 20 }}>{item.icon}</span>
-                  <span style={{ fontSize: 13, color: C.textMid }}>{item.text}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+          </>
         )}
-      </div>
+      </section>
 
-      <div style={{ padding: '16px 24px 32px', flexShrink: 0 }}>
-        <button onClick={() => step < 2 ? setStep(s => s + 1) : onComplete()} style={{
-          width: '100%', padding: 16, borderRadius: 14,
-          background: C.primary, color: 'white', border: 'none',
-          fontSize: 16, fontWeight: 700, cursor: 'pointer',
-        }}>
-          {step < 2 ? '下一步' : '授权并开始'}
+      <footer className="sticky-action">
+        {step > 0 && (
+          <button className="text-action" onClick={() => setStep(step - 1)}>
+            上一步
+          </button>
+        )}
+        <button
+          className="primary-action"
+          onClick={() => (step < 2 ? setStep(step + 1) : onComplete())}
+        >
+          {step < 2 ? "继续" : "同意并继续"}
+          <Icon name="chevron" size={18} />
         </button>
-      </div>
-    </div>
+      </footer>
+    </Page>
   )
 }
 
 function WatchConnectScreen({ onComplete }: { onComplete: () => void }) {
-  const [status, setStatus] = useState<'scanning' | 'found' | 'connected'>('scanning')
-  const [vibTested, setVibTested] = useState(false)
-  const [advancedMode, setAdvancedMode] = useState(true)
-
+  const [status, setStatus] = useState<"idle" | "found" | "connected">("idle")
+  const [tested, setTested] = useState(false)
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg }}>
+    <Page>
       <StatusBar />
-      <NavBar title="连接智能手表" />
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 24px 24px' }}>
-        {/* Watch illustration */}
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '28px 0 20px' }}>
-          <div style={{ position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {status === 'scanning' && [1, 2, 3].map(i => (
-              <div key={i} style={{
-                position: 'absolute', width: 60 + i * 28, height: 60 + i * 28,
-                borderRadius: '50%', border: `1px solid ${C.mint}`,
-                opacity: 0.35 - i * 0.08,
-              }} />
-            ))}
-            <div style={{
-              width: 74, height: 88, borderRadius: 24,
-              background: status === 'connected' ? C.primary : '#242424',
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', zIndex: 1, gap: 4,
-            }}>
-              {status === 'connected' ? (
-                <>
-                  <div style={{ fontSize: 10, color: C.mint }}>声脉</div>
-                  <div style={{ fontSize: 22, color: 'white' }}>✓</div>
-                </>
-              ) : (
-                <div style={{ fontSize: 28, color: 'white' }}>⌚</div>
-              )}
-            </div>
+      <AppHeader title="连接智能手表" eyebrow="已有设备" />
+      <section className="connect-hero">
+        <div
+          className={`watch-orbit ${
+            status === "connected" ? "is-connected" : ""
+          }`}
+        >
+          <span className="orbit orbit--one" />
+          <span className="orbit orbit--two" />
+          <div className="watch-device">
+            <span>9:41</span>
+            <Icon name={status === "connected" ? "check" : "pulse"} size={34} />
+            <small>{status === "connected" ? "已连接" : "等待连接"}</small>
           </div>
         </div>
+        <span className="section-kicker">无需购买新设备</span>
+        <h2>
+          {status === "connected"
+            ? "手表已经可以接收提醒"
+            : "使用你正在佩戴的手表"}
+        </h2>
+        <p>声脉通过系统通知与配套应用发送震动、图标和一行短字幕。</p>
+      </section>
 
-        <div style={{ textAlign: 'center', marginBottom: 24 }}>
-          <div style={{ fontSize: 16, fontWeight: 600, color: C.text, marginBottom: 4 }}>
-            {status === 'scanning' ? '正在搜索附近设备…' :
-              status === 'found' ? '发现设备' : '连接成功'}
-          </div>
-          <div style={{ fontSize: 13, color: C.textMuted }}>
-            {status === 'scanning' ? '请确保手表已开启蓝牙' :
-              status === 'found' ? 'Apple Watch Series 9' : '声脉已与您的手表建立连接'}
-          </div>
+      <section className="device-card section-frame">
+        <div className="device-card__icon">
+          <Icon name="watch" size={28} />
         </div>
-
-        {status === 'scanning' && (
-          <button onClick={() => setStatus('found')} style={{
-            width: '100%', padding: '13px', borderRadius: 12,
-            background: C.card, border: `1px solid ${C.border}`,
-            color: C.textMid, fontSize: 14, cursor: 'pointer',
-          }}>手动搜索设备</button>
+        <div>
+          <span className="field-label">附近设备</span>
+          <strong>{status === "idle" ? "正在搜索…" : "Lin 的智能手表"}</strong>
+          <small>
+            {status === "connected"
+              ? "连接稳定 · 电量 82%"
+              : "45 mm · 已配对手机"}
+          </small>
+        </div>
+        {status === "idle" && (
+          <button className="small-action" onClick={() => setStatus("found")}>
+            模拟发现
+          </button>
         )}
+        {status === "found" && (
+          <button
+            className="small-action small-action--solid"
+            onClick={() => setStatus("connected")}
+          >
+            连接
+          </button>
+        )}
+        {status === "connected" && (
+          <span className="connected-dot">
+            <i />
+            在线
+          </span>
+        )}
+      </section>
 
-        {status === 'found' && (
-          <div style={{
-            background: C.card, borderRadius: 16, padding: 16, border: `1.5px solid ${C.border}`,
-            display: 'flex', alignItems: 'center', gap: 14,
-          }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 10, background: '#242424',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 22,
-            }}>⌚</div>
-            <div style={{ flex: 1 }}>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>Apple Watch Series 9</div>
-              <div style={{ fontSize: 12, color: C.textMuted }}>电量 82% · 已配对</div>
-            </div>
-            <button onClick={() => setStatus('connected')} style={{
-              background: C.primary, color: 'white', border: 'none',
-              borderRadius: 10, padding: '8px 16px', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            }}>连接</button>
+      {status === "connected" && (
+        <section className="connection-settings">
+          <button
+            className={`vibration-test ${tested ? "is-tested" : ""}`}
+            onClick={() => setTested(true)}
+          >
+            <span className="vibration-test__icon">
+              <Icon name="vibrate" />
+            </span>
+            <span>
+              <strong>{tested ? "震动测试完成" : "测试一次腕上震动"}</strong>
+              <small>
+                {tested ? "手表反馈正常" : "确认你能舒适地感受到提醒"}
+              </small>
+            </span>
+            <Icon name={tested ? "check" : "chevron"} />
+          </button>
+          <div className="quiet-note">
+            <span>说明</span>
+            <p>
+              不同品牌手表支持的震动类型可能不同，声脉会自动使用设备允许的提醒方式。
+            </p>
           </div>
-        )}
+        </section>
+      )}
 
-        {status === 'connected' && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{
-              background: C.mintLight, borderRadius: 14, padding: '14px 16px',
-              display: 'flex', alignItems: 'center', gap: 12,
-            }}>
-              <span style={{ fontSize: 20 }}>✅</span>
-              <div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: C.primary }}>连接成功</div>
-                <div style={{ fontSize: 12, color: C.textMid }}>Apple Watch Series 9 · 电量 82%</div>
-              </div>
-            </div>
-
-            <button onClick={() => setVibTested(true)} style={{
-              background: C.card, border: `1px solid ${C.border}`,
-              borderRadius: 14, padding: '14px 16px', cursor: 'pointer',
-              display: 'flex', alignItems: 'center', gap: 12, width: '100%', textAlign: 'left',
-            }}>
-              <span style={{ fontSize: 22 }}>📳</span>
-              <div>
-                <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>测试震动</div>
-                <div style={{ fontSize: 12, color: vibTested ? C.mint : C.textMuted }}>
-                  {vibTested ? '✓ 测试成功，手表震动3次' : '点击发送测试震动'}
-                </div>
-              </div>
-            </button>
-
-            <div style={{ background: C.card, borderRadius: 14, border: `1px solid ${C.border}` }}>
-              {[
-                { icon: '🔔', label: '基础通知模式', sub: '仅接收重要提醒', selected: !advancedMode },
-                { icon: '⚡', label: '进阶手表模式', sub: '实时字幕 + 方向 + 快捷回应', selected: advancedMode },
-              ].map((opt, i) => (
-                <div key={i} onClick={() => setAdvancedMode(i === 1)} style={{
-                  padding: '14px 16px', display: 'flex', alignItems: 'center', gap: 12,
-                  borderBottom: i === 0 ? `1px solid ${C.border}` : 'none', cursor: 'pointer',
-                }}>
-                  <span style={{ fontSize: 20 }}>{opt.icon}</span>
-                  <div style={{ flex: 1 }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>{opt.label}</div>
-                    <div style={{ fontSize: 12, color: C.textMuted }}>{opt.sub}</div>
-                  </div>
-                  <div style={{
-                    width: 20, height: 20, borderRadius: '50%',
-                    border: `2px solid ${opt.selected ? C.primary : C.border}`,
-                    background: opt.selected ? C.primary : 'transparent',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {opt.selected && <div style={{ width: 8, height: 8, borderRadius: '50%', background: 'white' }} />}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      <div style={{ padding: '12px 24px 32px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {status === 'connected' && (
-          <button onClick={onComplete} style={{
-            width: '100%', padding: 16, borderRadius: 14,
-            background: C.primary, color: 'white', border: 'none',
-            fontSize: 16, fontWeight: 700, cursor: 'pointer',
-          }}>开始使用声脉</button>
-        )}
-        {status !== 'connected' && (
-          <button onClick={onComplete} style={{
-            background: 'none', border: 'none', color: C.textMuted, fontSize: 13, cursor: 'pointer',
-          }}>暂时跳过，稍后连接</button>
-        )}
-      </div>
-    </div>
+      <footer className="sticky-action">
+        <button
+          className="primary-action"
+          disabled={status !== "connected"}
+          onClick={onComplete}
+        >
+          进入声脉
+          <Icon name="chevron" size={18} />
+        </button>
+      </footer>
+    </Page>
   )
 }
 
-function HearScreen({ setScreen, isListening, setIsListening, setShowEmergency }: {
-  setScreen: (s: Screen) => void
-  isListening: boolean
-  setIsListening: (v: boolean) => void
-  setShowEmergency: (v: boolean) => void
+function HomeScreen({
+  onNavigate,
+  listening,
+  setListening,
+  onEmergency,
+}: {
+  onNavigate: (screen: Screen) => void
+  listening: boolean
+  setListening: (value: boolean) => void
+  onEmergency: () => void
 }) {
-  const [mode, setMode] = useState('公共场所')
-  const modes = ['居家', '公共场所', '医院', '餐厅', '交通']
-
+  const [mode, setMode] = useState("公共场所")
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg, overflow: 'hidden' }}>
-      {/* Green header */}
-      <div style={{ background: C.primary, flexShrink: 0 }}>
-        <StatusBar light />
-        <div style={{ padding: '4px 24px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <div>
-            <div style={{ fontSize: 20, fontWeight: 700, color: 'white' }}>听见</div>
-            <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.45)', marginTop: 1 }}>手表已连接 · 电量82%</div>
-          </div>
-          <div style={{
-            background: 'rgba(255,255,255,0.1)', borderRadius: 10,
-            padding: '5px 12px', display: 'flex', alignItems: 'center', gap: 6,
-          }}>
-            <span style={{ fontSize: 9, color: C.mint }}>●</span>
-            <span style={{ fontSize: 11, color: 'rgba(255,255,255,0.75)' }}>Apple Watch</span>
-          </div>
+    <Page className="home-page">
+      <StatusBar />
+      <header className="home-header">
+        <div className="brand-lockup">
+          <PulseMark />
+          <span>
+            <strong>声脉</strong>
+            <small>SoundPulse</small>
+          </span>
         </div>
-        {/* Mode chips */}
-        <div style={{ padding: '14px 24px 18px', display: 'flex', gap: 8, overflowX: 'auto' }}>
-          {modes.map(m => (
-            <button key={m} onClick={() => setMode(m)} style={{
-              padding: '6px 14px', borderRadius: 20, border: 'none', whiteSpace: 'nowrap',
-              background: mode === m ? C.mint : 'rgba(255,255,255,0.1)',
-              color: mode === m ? 'white' : 'rgba(255,255,255,0.55)',
-              fontSize: 12, fontWeight: mode === m ? 700 : 400, cursor: 'pointer',
-            }}>{m}</button>
-          ))}
+        <button
+          className="watch-status"
+          onClick={() => onNavigate("watchPreview")}
+        >
+          <Icon name="watch" size={18} />
+          <span>
+            <strong>已连接</strong>
+            <small>82%</small>
+          </span>
+          <i />
+        </button>
+      </header>
+
+      <section className="mode-strip" aria-label="场景模式">
+        {["公共场所", "交通", "医院", "餐厅"].map((item) => (
+          <button
+            key={item}
+            className={mode === item ? "is-active" : ""}
+            onClick={() => setMode(item)}
+          >
+            {item}
+          </button>
+        ))}
+      </section>
+
+      <section
+        className={`focus-card section-frame ${
+          listening ? "is-listening" : ""
+        }`}
+      >
+        <div className="focus-card__top">
+          <PriorityBadge level="P2" />
+          <span className="live-state">
+            <i />
+            {listening ? "正在识别" : "识别已暂停"}
+          </span>
         </div>
-      </div>
-
-      <div style={{ flex: 1, overflow: 'auto', padding: '20px 24px 16px' }}>
-        {/* Listening orb */}
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: 24 }}>
-          <div style={{ position: 'relative', marginBottom: 12 }}>
-            {isListening && [0, 1].map(i => (
-              <div key={i} style={{
-                position: 'absolute', top: '50%', left: '50%',
-                transform: 'translate(-50%,-50%)',
-                width: 100 + i * 34, height: 100 + i * 34, borderRadius: '50%',
-                background: C.mintLight, opacity: 0.6 - i * 0.25,
-              }} />
-            ))}
-            <button onClick={() => setIsListening(!isListening)} style={{
-              width: 96, height: 96, borderRadius: '50%', border: 'none',
-              background: isListening ? C.mint : C.mutedLight,
-              cursor: 'pointer', zIndex: 1, position: 'relative',
-              display: 'flex', flexDirection: 'column', alignItems: 'center',
-              justifyContent: 'center', gap: 4,
-              boxShadow: isListening ? `0 8px 24px ${C.mint}55` : 'none',
-              color: isListening ? 'white' : C.muted,
-              transition: 'all 0.2s',
-            }}>
-              <svg viewBox="0 0 24 24" fill="none" width={26} height={26}
-                stroke="currentColor" strokeWidth={2} strokeLinecap="round">
-                <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
-                <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-                <line x1="12" y1="19" x2="12" y2="23" />
-                <line x1="8" y1="23" x2="16" y2="23" />
-              </svg>
-              <span style={{ fontSize: 10, fontWeight: 700 }}>
-                {isListening ? '识别中' : '开始'}
-              </span>
-            </button>
-          </div>
-          <div style={{ fontSize: 12, color: C.textMuted }}>
-            {isListening ? '正在监听周围声音 · 当前场景：' + mode : '点击开始声音识别'}
-          </div>
+        <div className="direction-orb">
+          <span className="direction-orb__arrow">↗</span>
+          <i />
+          <i />
         </div>
-
-        {isListening && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, letterSpacing: 0.5, marginBottom: 2 }}>
-              当前声音
-            </div>
-
-            {/* P2 callout */}
-            <div onClick={() => setScreen('callout')} style={{
-              background: C.card, borderRadius: 18, padding: '14px 16px',
-              border: `1.5px solid ${C.orange}`,
-              borderLeft: `4px solid ${C.orange}`,
-              cursor: 'pointer',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 18 }}>🔔</span>
-                  <PBadge level="P2" />
-                </div>
-                <span style={{ fontSize: 11, color: C.textMuted, fontFamily: 'DM Mono, monospace' }}>刚刚</span>
-              </div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 3 }}>
-                张女士，123号
-              </div>
-              <div style={{ fontSize: 12, color: C.textMid, display: 'flex', gap: 10 }}>
-                <span>📢 叫号广播</span><span>·</span><span>↑ 前方</span><span>·</span>
-                <span style={{ fontFamily: 'DM Mono, monospace' }}>91%</span>
-              </div>
-            </div>
-
-            {/* P3 conversation */}
-            <div onClick={() => setScreen('realtime')} style={{
-              background: C.card, borderRadius: 18, padding: '14px 16px',
-              border: `1px solid ${C.border}`,
-              borderLeft: `4px solid ${C.mint}`,
-              cursor: 'pointer',
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
-                <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                  <span style={{ fontSize: 18 }}>💬</span>
-                  <PBadge level="P3" />
-                </div>
-                <span style={{ fontSize: 11, color: C.textMuted, fontFamily: 'DM Mono, monospace' }}>3s前</span>
-              </div>
-              <div style={{ fontSize: 14, fontWeight: 500, color: C.text, lineHeight: 1.5, marginBottom: 3 }}>
-                "您好，请问今天是预约号码吗？"
-              </div>
-              <div style={{ fontSize: 12, color: C.textMid, display: 'flex', gap: 10 }}>
-                <span>👩 工作人员</span><span>·</span><span>↗ 右前方</span>
-              </div>
-            </div>
-
-            {/* P4 ambient */}
-            <div style={{
-              background: C.card, borderRadius: 18, padding: '12px 16px',
-              border: `1px solid ${C.border}`,
-              borderLeft: `4px solid ${C.muted}`,
-              opacity: 0.7,
-            }}>
-              <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 4 }}>
-                <span style={{ fontSize: 16 }}>🎵</span>
-                <PBadge level="P4" />
-                <span style={{ fontSize: 11, color: C.textMuted, marginLeft: 'auto', fontFamily: 'DM Mono, monospace' }}>持续</span>
-              </div>
-              <div style={{ fontSize: 13, color: C.textMuted }}>背景音乐 · 环境声</div>
-            </div>
-
-            {/* Quick actions */}
-            <div style={{ display: 'flex', gap: 10, marginTop: 6 }}>
-              <button onClick={() => setScreen('multi')} style={{
-                flex: 1, padding: '14px 0', borderRadius: 14,
-                background: C.mintLight, border: 'none', cursor: 'pointer',
-                color: C.primary, fontSize: 13, fontWeight: 700,
-              }}>👥 多人对话</button>
-              <button onClick={() => setShowEmergency(true)} style={{
-                flex: 1, padding: '14px 0', borderRadius: 14,
-                background: C.redLight, border: `1px solid ${C.red}20`,
-                cursor: 'pointer', color: C.red, fontSize: 13, fontWeight: 700,
-              }}>🚨 紧急演示</button>
-            </div>
+        <div className="focus-card__copy">
+          <div className="speaker-line">
+            <span className="speaker-glyph">工</span>
+            <span>右前方 · 工作人员</span>
           </div>
-        )}
+          <h2>请到 18 号窗口办理。</h2>
+          <p>2 秒前 · 与你直接相关</p>
+        </div>
+        <div className="focus-card__actions">
+          <button onClick={() => onNavigate("conversation")}>
+            查看完整字幕
+          </button>
+          <button
+            className="round-action"
+            onClick={() => setListening(!listening)}
+            aria-label={listening ? "暂停识别" : "开始识别"}
+          >
+            <Icon name={listening ? "pause" : "play"} />
+          </button>
+        </div>
+      </section>
 
-        {!isListening && (
-          <div style={{ textAlign: 'center', padding: '20px 0' }}>
-            <div style={{ fontSize: 13, color: C.textMuted, lineHeight: 1.8 }}>
-              开启识别后，声脉将实时<br />
-              监听周围声音并通过手表<br />
-              向您发送分级震动提醒
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+      <section className="quick-row">
+        <button onClick={() => onNavigate("multi")}>
+          <span className="quick-row__icon quick-row__icon--blue">
+            <Icon name="message" />
+          </span>
+          <span>
+            <strong>多人对话</strong>
+            <small>区分当前讲者</small>
+          </span>
+          <Icon name="chevron" />
+        </button>
+        <button onClick={() => onNavigate("callout")}>
+          <span className="quick-row__icon quick-row__icon--gold">
+            <Icon name="ticket" />
+          </span>
+          <span>
+            <strong>叫号提醒</strong>
+            <small>不错过窗口通知</small>
+          </span>
+          <Icon name="chevron" />
+        </button>
+      </section>
+
+      <section className="timeline-section">
+        <div className="section-title">
+          <span>
+            <small>最近发生</small>
+            <h3>声音时间流</h3>
+          </span>
+          <button onClick={() => onNavigate("history")}>全部记录</button>
+        </div>
+        <div className="event-timeline">
+          <button onClick={() => onNavigate("conversation")}>
+            <span className="timeline-mark timeline-mark--p3">
+              <Icon name="message" size={17} />
+            </span>
+            <span>
+              <strong>左侧同伴正在说话</strong>
+              <small>“我们先去售票处……” · 1 分钟前</small>
+            </span>
+            <PriorityBadge level="P3" compact />
+          </button>
+          <button onClick={onEmergency}>
+            <span className="timeline-mark timeline-mark--p1">
+              <Icon name="car" size={17} />
+            </span>
+            <span>
+              <strong>后方检测到车辆鸣笛</strong>
+              <small>建议注意周围环境 · 4 分钟前</small>
+            </span>
+            <PriorityBadge level="P1" compact />
+          </button>
+          <button>
+            <span className="timeline-mark timeline-mark--p4">
+              <Icon name="music" size={17} />
+            </span>
+            <span>
+              <strong>附近表演音乐开始</strong>
+              <small>节奏轻快 · 12 分钟前</small>
+            </span>
+            <PriorityBadge level="P4" compact />
+          </button>
+        </div>
+      </section>
+    </Page>
   )
 }
 
-function RealtimeScreen({ onBack }: { onBack: () => void }) {
-  const [feedback, setFeedback] = useState<null | 'correct' | 'wrong'>(null)
-
+function ConversationScreen({ onBack }: { onBack?: () => void }) {
+  const [paused, setPaused] = useState(false)
+  const [feedback, setFeedback] = useState<"" | "yes" | "no">("")
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg }}>
+    <Page>
       <StatusBar />
-      <NavBar title="实时声音识别" onBack={onBack} />
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 24px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        {/* Main card */}
-        <div style={{ background: C.card, borderRadius: 20, padding: 20, border: `1px solid ${C.border}` }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-            <div style={{ display: 'flex', gap: 10, alignItems: 'center' }}>
-              <div style={{
-                width: 42, height: 42, borderRadius: 13, background: C.mintLight,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 20,
-              }}>💬</div>
-              <div>
-                <div style={{ fontSize: 15, fontWeight: 700, color: C.text }}>当前对话</div>
-                <div style={{ fontSize: 11, color: C.textMuted }}>P3 · 工作人员</div>
-              </div>
-            </div>
-            <span style={{
-              background: C.mintLight, color: C.primary,
-              fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6,
-            }}>进行中</span>
-          </div>
-
-          {/* Direction */}
-          <div style={{
-            display: 'flex', gap: 12, alignItems: 'center', marginBottom: 16,
-            padding: 12, background: C.bg, borderRadius: 12,
-          }}>
-            <div style={{
-              width: 48, height: 48, borderRadius: '50%',
-              border: `1.5px solid ${C.border}`, position: 'relative',
-              display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
-            }}>
-              <span style={{ fontSize: 22 }}>↗</span>
-              <span style={{ position: 'absolute', fontSize: 7, color: C.textMuted, top: 3 }}>前</span>
-              <span style={{ position: 'absolute', fontSize: 7, color: C.textMuted, bottom: 3 }}>后</span>
-            </div>
-            <div>
-              <div style={{ fontSize: 14, fontWeight: 600, color: C.text }}>疑似 右前方</div>
-              <div style={{ fontSize: 12, color: C.textMuted }}>距离：近（约1–2米）</div>
-            </div>
-          </div>
-
-          {/* Caption */}
-          <div style={{ background: C.mintLight, borderRadius: 14, padding: '14px 16px', marginBottom: 12 }}>
-            <div style={{ fontSize: 16, fontWeight: 500, color: C.text, lineHeight: 1.6 }}>
-              "您好，请问今天是预约号码吗？还是现场取号？"
-            </div>
-            <div style={{ fontSize: 11, color: C.textMid, marginTop: 8 }}>工作人员 · 2秒前</div>
-          </div>
-
-          {/* Confidence */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 11, color: C.textMuted }}>识别置信度</span>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-              <div style={{ flex: 1, height: 5, background: C.mutedLight, borderRadius: 3 }}>
-                <div style={{ width: '87%', height: '100%', background: C.mint, borderRadius: 3 }} />
-              </div>
-              <span style={{ fontSize: 12, fontFamily: 'DM Mono, monospace', color: C.primary, fontWeight: 500 }}>87%</span>
-            </div>
-          </div>
-
-          {/* Keywords */}
-          <div style={{ marginBottom: 14 }}>
-            <div style={{ fontSize: 11, color: C.textMuted, marginBottom: 8 }}>关键信息</div>
-            <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap' }}>
-              {['预约号码', '现场取号', '询问'].map(kw => (
-                <span key={kw} style={{
-                  background: C.bg, border: `1px solid ${C.border}`,
-                  borderRadius: 20, padding: '4px 12px', fontSize: 12, color: C.textMid,
-                }}>{kw}</span>
-              ))}
-            </div>
-          </div>
-
-          {/* Suggested action */}
-          <div style={{
-            background: C.orangeLight, borderRadius: 12, padding: '12px 14px',
-            borderLeft: `3px solid ${C.orange}`,
-          }}>
-            <div style={{ fontSize: 10, color: C.orange, fontWeight: 700, marginBottom: 3 }}>建议行动</div>
-            <div style={{ fontSize: 13, color: C.text }}>工作人员正在询问您，可使用沟通卡回应</div>
-          </div>
+      <AppHeader
+        title="实时对话"
+        eyebrow="当前场景"
+        onBack={onBack}
+        action={
+          <span className="listening-indicator">
+            <i />
+            {paused ? "已暂停" : "识别中"}
+          </span>
+        }
+      />
+      <section className="conversation-stage">
+        <div className="speaker-compass">
+          <span className="speaker-compass__person">工</span>
+          <i className="speaker-compass__arc" />
+          <span className="speaker-compass__direction">右前方</span>
         </div>
-
-        {/* Feedback */}
-        <div style={{ background: C.card, borderRadius: 16, padding: '14px 16px', border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 12, color: C.textMuted, marginBottom: 10 }}>识别是否准确？</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={() => setFeedback('correct')} style={{
-              flex: 1, padding: 10, borderRadius: 10, border: 'none',
-              background: feedback === 'correct' ? C.mint : C.bg,
-              color: feedback === 'correct' ? 'white' : C.textMid,
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            }}>✓ 识别正确</button>
-            <button onClick={() => setFeedback('wrong')} style={{
-              flex: 1, padding: 10, borderRadius: 10, border: 'none',
-              background: feedback === 'wrong' ? C.orange : C.bg,
-              color: feedback === 'wrong' ? 'white' : C.textMid,
-              fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            }}>✕ 识别有误</button>
+        <PriorityBadge level="P3" />
+        <h2>“请把身份证放在感应区，然后看向摄像头。”</h2>
+        <div className="conversation-meta">
+          <span>工作人员</span>
+          <i />
+          <span>刚刚</span>
+          <i />
+          <span>置信度 96%</span>
+        </div>
+      </section>
+      <section className="transcript-stack">
+        <div className="transcript-item is-current">
+          <span className="speaker-glyph">工</span>
+          <div>
+            <strong>工作人员</strong>
+            <p>请把身份证放在感应区，然后看向摄像头。</p>
           </div>
-          {feedback === 'wrong' && (
-            <div style={{ marginTop: 10, padding: '10px 14px', background: C.bg, borderRadius: 10 }}>
-              <input placeholder="请描述正确内容…" style={{
-                width: '100%', border: 'none', background: 'transparent',
-                fontSize: 13, color: C.text, outline: 'none',
-              }} />
-            </div>
-          )}
+          <small>现在</small>
         </div>
-
-        {/* Recent events */}
-        <div style={{ background: C.card, borderRadius: 16, padding: '14px 16px', border: `1px solid ${C.border}` }}>
-          <div style={{ fontSize: 11, fontWeight: 700, color: C.textMuted, marginBottom: 12 }}>最近声音事件</div>
-          {[
-            { icon: '🚗', text: '车辆经过', dir: '←左方', conf: 72, time: '12s前' },
-            { icon: '📢', text: '公共广播', dir: '↑前方', conf: 95, time: '28s前' },
-          ].map((ev, i) => (
-            <div key={i} style={{
-              display: 'flex', alignItems: 'center', gap: 12,
-              paddingBottom: i === 0 ? 12 : 0, marginBottom: i === 0 ? 12 : 0,
-              borderBottom: i === 0 ? `1px solid ${C.border}` : 'none',
-            }}>
-              <span style={{ fontSize: 20 }}>{ev.icon}</span>
-              <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{ev.text}</div>
-                <div style={{ fontSize: 11, color: C.textMuted }}>{ev.dir} · {ev.conf}%</div>
-              </div>
-              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: 'DM Mono, monospace' }}>{ev.time}</span>
-            </div>
-          ))}
+        <div className="transcript-item">
+          <span className="speaker-glyph speaker-glyph--self">我</span>
+          <div>
+            <strong>你</strong>
+            <p>好的，请稍等，我正在确认。</p>
+          </div>
+          <small>8 秒</small>
         </div>
-      </div>
-    </div>
+        <div className="transcript-item is-muted">
+          <span className="speaker-glyph">工</span>
+          <div>
+            <strong>工作人员</strong>
+            <p>办理过程大约需要三分钟。</p>
+          </div>
+          <small>16 秒</small>
+        </div>
+      </section>
+      <section className="confidence-card">
+        <div>
+          <span>这句识别准确吗？</span>
+          <small>你的反馈只用于改善文字识别。</small>
+        </div>
+        <div>
+          <button
+            className={feedback === "yes" ? "is-active" : ""}
+            onClick={() => setFeedback("yes")}
+          >
+            <Icon name="check" />
+            准确
+          </button>
+          <button
+            className={feedback === "no" ? "is-active" : ""}
+            onClick={() => setFeedback("no")}
+          >
+            <Icon name="refresh" />
+            有误
+          </button>
+        </div>
+      </section>
+      <footer className="conversation-controls">
+        <button>
+          <Icon name="history" />
+          <span>上一句</span>
+        </button>
+        <button
+          className="conversation-controls__main"
+          onClick={() => setPaused(!paused)}
+        >
+          <Icon name={paused ? "play" : "pause"} />
+          <span>{paused ? "继续" : "暂停"}</span>
+        </button>
+        <button>
+          <Icon name="summary" />
+          <span>总结</span>
+        </button>
+      </footer>
+    </Page>
   )
 }
 
 function MultiPersonScreen({ onBack }: { onBack: () => void }) {
-  const [locked, setLocked] = useState<number | null>(null)
-  const [showSummary, setShowSummary] = useState(false)
-
+  const [active, setActive] = useState(1)
+  const [summary, setSummary] = useState(false)
   const speakers = [
     {
-      name: '工作人员', icon: '👩‍💼', color: C.mint, direction: '↗ 右前方',
-      caption: '您的申请材料已经审核通过，请到3号窗口取件。',
-      time: '刚刚', active: true,
+      name: "讲者 1",
+      direction: "左侧",
+      glyph: "一",
+      text: "我们先去售票处。",
+      tone: "blue",
     },
     {
-      name: '同行者', icon: '🧑', color: C.orange, direction: '← 左方',
-      caption: '好的，我们去3号窗口。',
-      time: '8s前', active: false,
+      name: "讲者 2",
+      direction: "正前方",
+      glyph: "二",
+      text: "买完票以后，在入口右侧集合。",
+      tone: "jade",
     },
     {
-      name: '其他参与者', icon: '👤', color: C.muted, direction: '↓ 后方',
-      caption: '请大家有序排队…',
-      time: '23s前', active: false,
+      name: "讲者 3",
+      direction: "右侧",
+      glyph: "三",
+      text: "我可以帮大家看一下开放时间。",
+      tone: "gold",
     },
   ]
-
+  const current = speakers[active]
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg }}>
+    <Page>
       <StatusBar />
-      <NavBar title="多人对话" onBack={onBack} />
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 20px 20px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        <div style={{ display: 'flex', gap: 8 }}>
-          <button onClick={() => setShowSummary(!showSummary)} style={{
-            flex: 1, padding: '10px', borderRadius: 10,
-            background: showSummary ? C.mintLight : C.card,
-            border: `1px solid ${showSummary ? C.mint : C.border}`,
-            color: showSummary ? C.primary : C.textMid, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          }}>✨ 生成摘要</button>
-          <button style={{
-            flex: 1, padding: '10px', borderRadius: 10,
-            background: C.card, border: `1px solid ${C.border}`,
-            color: C.textMid, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          }}>↩ 回看上一句</button>
-        </div>
-
-        {showSummary && (
-          <div style={{ background: C.primary, borderRadius: 16, padding: 16 }}>
-            <div style={{ fontSize: 10, color: C.mint, marginBottom: 8, fontWeight: 700 }}>✨ AI 摘要</div>
-            <div style={{ fontSize: 14, color: 'white', lineHeight: 1.8 }}>
-              工作人员告知您申请材料已审核通过，请前往
-              <strong style={{ color: C.mint }}>3号窗口</strong>取件。
-              同行者已确认，准备前往。
-            </div>
-          </div>
-        )}
-
-        {speakers.map((sp, i) => {
-          const isActive = sp.active && locked === null
-          const isLocked = locked === i
-          const dim = locked !== null && !isLocked
-
-          return (
-            <div key={i} style={{
-              background: C.card, borderRadius: 18,
-              padding: isActive || isLocked ? 18 : '12px 16px',
-              border: `${isActive || isLocked ? '2px' : '1px'} solid ${isActive || isLocked ? sp.color : C.border}`,
-              opacity: dim ? 0.45 : 1, transition: 'all 0.2s',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: isActive || isLocked ? 12 : 0 }}>
-                <div style={{
-                  width: isActive || isLocked ? 46 : 36, height: isActive || isLocked ? 46 : 36,
-                  borderRadius: '50%', background: sp.color + '22',
-                  border: `2px solid ${sp.color}`,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: isActive || isLocked ? 22 : 18, flexShrink: 0,
-                }}>{sp.icon}</div>
-                <div style={{ flex: 1 }}>
-                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <span style={{ fontSize: isActive || isLocked ? 15 : 13, fontWeight: 700, color: C.text }}>
-                      {sp.name}
-                    </span>
-                    {sp.active && locked === null && (
-                      <span style={{
-                        background: sp.color, color: 'white',
-                        fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-                      }}>说话中</span>
-                    )}
-                    {isLocked && (
-                      <span style={{
-                        background: C.orange, color: 'white',
-                        fontSize: 9, fontWeight: 700, padding: '1px 6px', borderRadius: 4,
-                      }}>已锁定</span>
-                    )}
-                  </div>
-                  <div style={{ fontSize: 11, color: C.textMuted }}>{sp.direction} · {sp.time}</div>
-                </div>
-                <button onClick={() => setLocked(locked === i ? null : i)} style={{
-                  background: isLocked ? C.orangeLight : C.bg, border: 'none',
-                  borderRadius: 8, padding: '6px 10px',
-                  color: isLocked ? C.orange : C.textMuted, fontSize: 11, cursor: 'pointer',
-                }}>{isLocked ? '解锁' : '锁定'}</button>
-              </div>
-
-              {(isActive || isLocked) && (
-                <div style={{ background: sp.color + '18', borderRadius: 12, padding: '12px 14px' }}>
-                  <div style={{ fontSize: 15, color: C.text, lineHeight: 1.6 }}>"{sp.caption}"</div>
-                </div>
-              )}
-              {!isActive && !isLocked && (
-                <div style={{
-                  fontSize: 12, color: C.textMuted,
-                  overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                }}>"{sp.caption}"</div>
-              )}
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function EmergencyScreen({ onDismiss }: { onDismiss: () => void }) {
-  const [confirmed, setConfirmed] = useState(false)
-  return (
-    <div style={{
-      position: 'absolute', inset: 0, background: C.red, zIndex: 100,
-      display: 'flex', flexDirection: 'column',
-    }}>
-      <StatusBar light />
-      <div style={{
-        flex: 1, display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', padding: '0 28px',
-      }}>
-        <div style={{
-          width: 76, height: 76, borderRadius: '50%',
-          background: 'rgba(255,255,255,0.15)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 20,
-        }}>
-          <svg viewBox="0 0 24 24" fill="none" width={44} height={44}
-            stroke="white" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
-            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" /><line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-        </div>
-
-        <div style={{
-          background: 'rgba(255,255,255,0.15)', borderRadius: 6,
-          padding: '3px 12px', marginBottom: 14,
-        }}>
-          <span style={{ color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: 700, letterSpacing: 1.5 }}>
-            P1 · 紧急安全提醒
+      <AppHeader
+        title="多人对话"
+        eyebrow="3 位讲者"
+        onBack={onBack}
+        action={
+          <button
+            className="header-text-action"
+            onClick={() => setSummary(!summary)}
+          >
+            一句话总结
+          </button>
+        }
+      />
+      {summary ? (
+        <section className="summary-card section-frame">
+          <span className="summary-card__seal">
+            <Icon name="summary" />
           </span>
-        </div>
-
-        <div style={{
-          fontSize: 28, fontWeight: 700, color: 'white',
-          textAlign: 'center', lineHeight: 1.3, marginBottom: 20,
-        }}>
-          右后方车辆<br />正在靠近
-        </div>
-
-        {/* Direction compass */}
-        <div style={{
-          width: 96, height: 96, borderRadius: '50%',
-          border: '1.5px solid rgba(255,255,255,0.25)',
-          position: 'relative', margin: '0 0 20px',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
-          {[['前', 'top', '50%', '6px', 'auto'], ['后', 'bottom', '50%', 'auto', '6px'],
-            ['左', 'left', '6px', 'auto', 'auto'], ['右', 'right', 'auto', 'auto', '6px']].map(([label, side]) => (
-            <span key={label as string} style={{
-              position: 'absolute', fontSize: 9, color: 'rgba(255,255,255,0.4)',
-              ...(side === 'top' ? { top: 8, left: '50%', transform: 'translateX(-50%)' } : {}),
-              ...(side === 'bottom' ? { bottom: 8, left: '50%', transform: 'translateX(-50%)' } : {}),
-              ...(side === 'left' ? { left: 8, top: '50%', transform: 'translateY(-50%)' } : {}),
-              ...(side === 'right' ? { right: 8, top: '50%', transform: 'translateY(-50%)' } : {}),
-            }}>{label}</span>
-          ))}
-          <span style={{ position: 'absolute', bottom: 18, right: 16, fontSize: 22 }}>🚗</span>
-          <div style={{
-            width: 22, height: 22, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.35)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', fontSize: 10, color: 'white', fontWeight: 700,
-          }}>你</div>
-        </div>
-
-        <div style={{
-          background: 'rgba(255,255,255,0.15)', borderRadius: 16,
-          padding: '14px 20px', textAlign: 'center', width: '100%', marginBottom: 6,
-        }}>
-          <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.6)', marginBottom: 6 }}>建议行动</div>
-          <div style={{ fontSize: 18, fontWeight: 700, color: 'white' }}>请停下并观察右后方</div>
-        </div>
-        <div style={{ fontSize: 11, color: 'rgba(255,255,255,0.4)', fontFamily: 'DM Mono, monospace' }}>
-          疑似车辆鸣笛 · 置信度 82%
-        </div>
-      </div>
-
-      <div style={{ padding: '0 24px 40px', display: 'flex', flexDirection: 'column', gap: 10 }}>
-        {!confirmed ? (
-          <button onClick={() => { setConfirmed(true); setTimeout(onDismiss, 1000) }} style={{
-            padding: 16, borderRadius: 14, border: 'none',
-            background: 'white', color: C.red, fontSize: 16, fontWeight: 700, cursor: 'pointer',
-          }}>✓ 我已注意，确认安全</button>
-        ) : (
-          <div style={{
-            padding: 16, borderRadius: 14, background: 'rgba(255,255,255,0.2)',
-            textAlign: 'center', color: 'white', fontSize: 15, fontWeight: 700,
-          }}>✓ 已确认，正在关闭…</div>
-        )}
-        <button onClick={onDismiss} style={{
-          padding: 12, background: 'none',
-          border: '1px solid rgba(255,255,255,0.25)',
-          borderRadius: 12, color: 'rgba(255,255,255,0.65)', fontSize: 13, cursor: 'pointer',
-        }}>✕ 识别有误，忽略此提醒</button>
-      </div>
-    </div>
+          <small>AI 场景摘要</small>
+          <h2>大家决定先去售票处，购票后在入口右侧集合。</h2>
+          <p>开放时间仍待确认。</p>
+          <button onClick={() => setSummary(false)}>返回实时对话</button>
+        </section>
+      ) : (
+        <>
+          <section className="multi-focus">
+            <div className="multi-radar">
+              <span
+                className={`speaker-node speaker-node--left ${
+                  active === 0 ? "is-active" : ""
+                }`}
+              >
+                一
+              </span>
+              <span
+                className={`speaker-node speaker-node--top ${
+                  active === 1 ? "is-active" : ""
+                }`}
+              >
+                二
+              </span>
+              <span
+                className={`speaker-node speaker-node--right ${
+                  active === 2 ? "is-active" : ""
+                }`}
+              >
+                三
+              </span>
+              <i />
+              <b />
+            </div>
+            <span className="section-kicker">
+              {current.direction} · {current.name}
+            </span>
+            <h2>“{current.text}”</h2>
+            <p>轻触下方讲者可锁定字幕来源</p>
+          </section>
+          <section className="speaker-list">
+            {speakers.map((speaker, index) => (
+              <button
+                key={speaker.name}
+                className={`speaker-card speaker-card--${speaker.tone} ${
+                  active === index ? "is-active" : ""
+                }`}
+                onClick={() => setActive(index)}
+              >
+                <span className="speaker-card__glyph">{speaker.glyph}</span>
+                <span>
+                  <strong>
+                    {speaker.name}
+                    <small>{speaker.direction}</small>
+                  </strong>
+                  <p>{speaker.text}</p>
+                </span>
+                {active === index ? (
+                  <span className="speaker-card__live">
+                    <i />
+                    当前
+                  </span>
+                ) : (
+                  <Icon name="chevron" />
+                )}
+              </button>
+            ))}
+          </section>
+        </>
+      )}
+    </Page>
   )
 }
 
 function CalloutScreen({ onBack }: { onBack: () => void }) {
+  const [confirmed, setConfirmed] = useState(false)
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg }}>
-      <div style={{ background: C.orange }}>
-        <StatusBar light />
-        <NavBar title="叫号提醒" onBack={onBack} light />
-        <div style={{ textAlign: 'center', padding: '12px 24px 28px' }}>
-          <div style={{
-            width: 60, height: 60, borderRadius: '50%',
-            background: 'rgba(255,255,255,0.2)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 12px', fontSize: 28,
-          }}>🔔</div>
-          <div style={{
-            background: 'rgba(255,255,255,0.15)', borderRadius: 6,
-            padding: '3px 12px', display: 'inline-block', marginBottom: 10,
-          }}>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.85)', fontWeight: 700 }}>
-              P2 · 与您直接相关
-            </span>
-          </div>
-          <div style={{ fontSize: 28, fontWeight: 700, color: 'white', marginBottom: 4 }}>
-            张女士，123号
-          </div>
-          <div style={{ fontSize: 14, color: 'rgba(255,255,255,0.75)' }}>
-            请到3号窗口办理业务
-          </div>
+    <Page className="callout-page">
+      <StatusBar />
+      <AppHeader title="叫号提醒" eyebrow="公共服务" onBack={onBack} />
+      <section
+        className={`ticket-focus section-frame ${
+          confirmed ? "is-confirmed" : ""
+        }`}
+      >
+        <span className="ticket-focus__icon">
+          <Icon name={confirmed ? "check" : "ticket"} size={30} />
+        </span>
+        <span className="section-kicker">
+          {confirmed ? "已确认" : "轮到你了"}
+        </span>
+        <div className="ticket-number">
+          A<span>018</span>
         </div>
-      </div>
+        <h2>{confirmed ? "已在手表上标记完成" : "请前往 18 号窗口"}</h2>
+        <p>服务大厅 · 右侧区域 · 10 秒前</p>
+        <div className="haptic-pattern">
+          <span />
+          <span />
+          <span />
+          <i>双次震动</i>
+        </div>
+      </section>
+      <section className="route-note">
+        <span className="route-note__number">18</span>
+        <div>
+          <strong>18 号窗口</strong>
+          <small>从当前位置向右前方约 12 米</small>
+        </div>
+        <span className="route-note__arrow">↗</span>
+      </section>
+      <footer className="sticky-action sticky-action--split">
+        <button className="secondary-action" onClick={onBack}>
+          稍后处理
+        </button>
+        <button className="primary-action" onClick={() => setConfirmed(true)}>
+          {confirmed ? "已完成" : "确认收到"}
+          <Icon name="check" />
+        </button>
+      </footer>
+    </Page>
+  )
+}
 
-      <div style={{ flex: 1, overflow: 'auto', padding: '16px 24px 24px', display: 'flex', flexDirection: 'column', gap: 12 }}>
-        <div style={{ background: C.card, borderRadius: 16, padding: 16, border: `1px solid ${C.border}` }}>
-          {[
-            { label: '呼叫来源', value: '3号窗口广播' },
-            { label: '声音方向', value: '↑ 前方' },
-            { label: '完整字幕', value: '123号张女士，请到3号窗口，办理证件业务。' },
-            { label: '识别置信度', value: '91%' },
-          ].map((row, i, arr) => (
-            <div key={i} style={{
-              display: 'flex', gap: 12,
-              paddingBottom: i < arr.length - 1 ? 12 : 0,
-              marginBottom: i < arr.length - 1 ? 12 : 0,
-              borderBottom: i < arr.length - 1 ? `1px solid ${C.border}` : 'none',
-            }}>
-              <span style={{ fontSize: 12, color: C.textMuted, width: 72, flexShrink: 0 }}>{row.label}</span>
-              <span style={{ fontSize: 13, color: C.text, fontWeight: 500 }}>{row.value}</span>
-            </div>
+function ServiceScreen() {
+  const [selected, setSelected] = useState<string | null>(null)
+  const [input, setInput] = useState("")
+  const quickReplies = [
+    "请面对我说话",
+    "请再说一遍",
+    "请提供文字说明",
+    "我正在阅读字幕，请稍等",
+  ]
+  return (
+    <Page>
+      <StatusBar />
+      <AppHeader
+        title="公共服务"
+        eyebrow="双向沟通"
+        action={
+          <span className="listening-indicator">
+            <i />
+            识别中
+          </span>
+        }
+      />
+      <section className="service-transcript section-frame">
+        <div className="service-transcript__top">
+          <span className="speaker-glyph">工</span>
+          <span>
+            <strong>工作人员</strong>
+            <small>柜台 · 正前方</small>
+          </span>
+          <PriorityBadge level="P3" compact />
+        </div>
+        <blockquote>“请问您需要办理哪一项业务？”</blockquote>
+        <button>
+          <Icon name="refresh" size={17} />
+          重新识别
+        </button>
+      </section>
+      <section className="quick-reply-section">
+        <div className="section-title">
+          <span>
+            <small>快捷回应</small>
+            <h3>选择一句展示给对方</h3>
+          </span>
+        </div>
+        <div className="quick-replies">
+          {quickReplies.map((reply, index) => (
+            <button key={reply} onClick={() => setSelected(reply)}>
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{reply}</strong>
+              <Icon name="arrowUpRight" />
+            </button>
           ))}
         </div>
-
-        <button onClick={onBack} style={{
-          padding: 16, borderRadius: 14, border: 'none',
-          background: C.orange, color: 'white', fontSize: 15, fontWeight: 700, cursor: 'pointer',
-        }}>✓ 我知道了，前往3号窗口</button>
-        <button onClick={onBack} style={{
-          padding: 12, background: 'none', border: `1px solid ${C.border}`,
-          borderRadius: 12, color: C.textMuted, fontSize: 13, cursor: 'pointer',
-        }}>✕ 识别有误</button>
-      </div>
-    </div>
+      </section>
+      <section className="compose-bar">
+        <input
+          aria-label="输入自定义回复"
+          value={input}
+          onChange={(event) => setInput(event.target.value)}
+          placeholder="输入自定义回复…"
+        />
+        <button
+          disabled={!input.trim()}
+          onClick={() => {
+            setSelected(input)
+            setInput("")
+          }}
+          aria-label="发送"
+        >
+          <Icon name="send" />
+        </button>
+      </section>
+      {selected && (
+        <div
+          className="large-text-overlay"
+          role="dialog"
+          aria-modal="true"
+          aria-label="大字展示"
+        >
+          <button
+            className="large-text-overlay__close"
+            onClick={() => setSelected(null)}
+            aria-label="关闭"
+          >
+            <Icon name="close" />
+          </button>
+          <span>请向工作人员展示</span>
+          <p>{selected}</p>
+          <small>轻触屏幕关闭</small>
+        </div>
+      )}
+    </Page>
   )
 }
 
-function CommunicateScreen() {
-  const [input, setInput] = useState('')
-  const [enlarged, setEnlarged] = useState<string | null>(null)
-
-  const quickCards = [
-    '请面对我说话', '请稍等，我正在阅读字幕',
-    '请说慢一点', '请再说一次',
-    '我是听障人士', '请把重要信息写下来',
-    '我已理解', '我需要帮助',
-  ]
-
-  if (enlarged) {
-    return (
-      <div style={{
-        flex: 1, background: C.primary,
-        display: 'flex', flexDirection: 'column',
-        alignItems: 'center', justifyContent: 'center', padding: 32,
-      }}>
-        <div style={{
-          fontSize: 28, fontWeight: 700, color: 'white',
-          textAlign: 'center', lineHeight: 1.6, marginBottom: 52,
-        }}>{enlarged}</div>
-        <button onClick={() => setEnlarged(null)} style={{
-          background: 'rgba(255,255,255,0.15)', border: 'none', borderRadius: 14,
-          color: 'white', fontSize: 15, padding: '14px 40px', cursor: 'pointer',
-        }}>收起</button>
-      </div>
-    )
-  }
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg, overflow: 'hidden' }}>
-      <StatusBar />
-      <div style={{
-        padding: '4px 24px 12px', display: 'flex',
-        justifyContent: 'space-between', alignItems: 'center', flexShrink: 0,
-      }}>
-        <span style={{ fontSize: 17, fontWeight: 700, color: C.text }}>沟通</span>
-        <span style={{
-          background: C.mintLight, color: C.primary,
-          fontSize: 11, padding: '4px 12px', borderRadius: 20, fontWeight: 700,
-        }}>识别中 ●</span>
-      </div>
-
-      <div style={{ flex: 1, overflow: 'auto', padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 8 }}>
-        {[
-          { speaker: '工作人员', text: '请问您是来办理什么业务的？', time: '现在', active: true },
-          { speaker: '工作人员', text: '您好，我们这里需要身份证原件。', time: '1分钟前', active: false },
-          { speaker: '工作人员', text: '请问您有预约吗？', time: '3分钟前', active: false },
-        ].map((item, i) => (
-          <div key={i} style={{
-            background: C.card, borderRadius: 16, padding: '14px 16px',
-            border: `${item.active ? '2' : '1'}px solid ${item.active ? C.mint : C.border}`,
-            borderLeft: `4px solid ${item.active ? C.mint : C.border}`,
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-              <span style={{ fontSize: 12, fontWeight: 700, color: C.mint }}>👩‍💼 {item.speaker}</span>
-              <span style={{ fontSize: 11, color: C.textMuted, fontFamily: 'DM Mono, monospace' }}>{item.time}</span>
-            </div>
-            <div style={{ fontSize: item.active ? 16 : 14, color: C.text, lineHeight: 1.5 }}>{item.text}</div>
-          </div>
-        ))}
-      </div>
-
-      <div style={{
-        flexShrink: 0, padding: '12px 24px 0',
-        borderTop: `1px solid ${C.border}`, background: C.bg,
-      }}>
-        <div style={{ overflowX: 'auto', marginBottom: 10 }}>
-          <div style={{ display: 'flex', gap: 8, paddingBottom: 4 }}>
-            {quickCards.map(card => (
-              <button key={card} onClick={() => setEnlarged(card)} style={{
-                padding: '8px 14px', borderRadius: 20, border: `1px solid ${C.border}`,
-                background: C.card, color: C.textMid, fontSize: 12, fontWeight: 500,
-                cursor: 'pointer', whiteSpace: 'nowrap',
-              }}>{card}</button>
-            ))}
-          </div>
-        </div>
-        <div style={{ display: 'flex', gap: 10, paddingBottom: 32 }}>
-          <div style={{
-            flex: 1, background: C.card, borderRadius: 14,
-            border: `1px solid ${C.border}`, padding: '12px 14px',
-          }}>
-            <input value={input} onChange={e => setInput(e.target.value)}
-              placeholder="输入文字，放大展示给对方…"
-              style={{
-                width: '100%', border: 'none', background: 'transparent',
-                fontSize: 14, color: C.text, outline: 'none',
-              }} />
-          </div>
-          <button onClick={() => { if (input) { setEnlarged(input); setInput('') } }} style={{
-            width: 44, height: 44, borderRadius: 12, border: 'none',
-            background: input ? C.primary : C.mutedLight,
-            color: input ? 'white' : C.textMuted, fontSize: 20,
-            cursor: input ? 'pointer' : 'default', flexShrink: 0,
-          }}>↑</button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-function RecordScreen() {
-  const [filter, setFilter] = useState('全部')
-  const filters = ['全部', '字幕', '提醒', '广播', '安全']
-
+function HistoryScreen({ onBack }: { onBack?: () => void }) {
+  const [filter, setFilter] = useState("全部")
   const events = [
-    { type: 'callout', icon: '🔔', text: '张女士123号，请到3号窗口', time: '14:23', priority: 'P2' as const, color: C.orange },
-    { type: 'conversation', icon: '💬', text: '工作人员："请问您是来办理什么业务的？"', time: '14:19', priority: 'P3' as const, color: C.mint },
-    { type: 'broadcast', icon: '📢', text: '本行将于下午5点停止对外服务…', time: '14:15', priority: 'P3' as const, color: C.mint },
-    { type: 'safety', icon: '🚗', text: '疑似车辆鸣笛 · 右后方 · 置信度82%', time: '13:52', priority: 'P1' as const, color: C.red },
-    { type: 'conversation', icon: '💬', text: '同行者："我们去3号窗口吧"', time: '14:21', priority: 'P3' as const, color: C.mint },
+    {
+      time: "14:32",
+      level: "P2" as Priority,
+      title: "18 号窗口叫号",
+      detail: "服务大厅 · 已确认",
+      icon: "ticket" as IconName,
+    },
+    {
+      time: "14:26",
+      level: "P3" as Priority,
+      title: "工作人员说明办理步骤",
+      detail: "共 4 句 · 已生成摘要",
+      icon: "message" as IconName,
+    },
+    {
+      time: "14:17",
+      level: "P1" as Priority,
+      title: "后方车辆鸣笛",
+      detail: "持续 2 秒 · 已提醒手表",
+      icon: "car" as IconName,
+    },
+    {
+      time: "14:05",
+      level: "P4" as Priority,
+      title: "附近音乐表演开始",
+      detail: "轻快节奏 · 约 92 BPM",
+      icon: "music" as IconName,
+    },
   ]
-
-  const filtered = events.filter(e =>
-    filter === '全部' ||
-    (filter === '字幕' && e.type === 'conversation') ||
-    (filter === '提醒' && e.type === 'callout') ||
-    (filter === '广播' && e.type === 'broadcast') ||
-    (filter === '安全' && e.type === 'safety')
-  ).sort((a, b) => b.time.localeCompare(a.time))
-
+  const visible =
+    filter === "全部" ? events : events.filter((item) => item.level === filter)
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg, overflow: 'hidden' }}>
+    <Page>
       <StatusBar />
-      <div style={{ padding: '4px 24px 12px', flexShrink: 0 }}>
-        <div style={{ fontSize: 17, fontWeight: 700, color: C.text, marginBottom: 14 }}>记录</div>
-
-        {/* AI summary */}
-        <div style={{ background: C.primary, borderRadius: 18, padding: 16, marginBottom: 12 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-            <span style={{ fontSize: 10, color: C.mint, fontWeight: 700 }}>✨ AI 今日摘要</span>
-            <span style={{ fontSize: 10, color: 'rgba(255,255,255,0.35)', fontFamily: 'DM Mono, monospace' }}>今天</span>
-          </div>
-          <div style={{ fontSize: 13, color: 'white', lineHeight: 1.8 }}>
-            在银行期间，申请材料已审核通过，需前往
-            <strong style={{ color: C.mint }}>3号窗口</strong>取件。
-            曾收到一次车辆接近提醒，已确认安全。
-          </div>
+      <AppHeader
+        title="声音记录"
+        eyebrow="今天"
+        onBack={onBack}
+        action={<button className="header-text-action">管理</button>}
+      />
+      <section className="history-overview">
+        <div>
+          <small>今日已整理</small>
+          <strong>12</strong>
+          <span>条重要信息</span>
         </div>
+        <div className="history-overview__rings">
+          <i />
+          <i />
+          <i />
+        </div>
+      </section>
+      <section className="filter-strip">
+        {["全部", "P1", "P2", "P3", "P4"].map((item) => (
+          <button
+            key={item}
+            className={filter === item ? "is-active" : ""}
+            onClick={() => setFilter(item)}
+          >
+            {item === "全部"
+              ? item
+              : `${item} ${priorityMeta[(item as Priority)].label}`}
+          </button>
+        ))}
+      </section>
+      <section className="history-list">
+        {visible.map((event) => (
+          <article key={event.time + event.title}>
+            <time>{event.time}</time>
+            <span
+              className={`history-list__icon history-list__icon--${event.level.toLowerCase()}`}
+            >
+              <Icon name={event.icon} />
+            </span>
+            <div>
+              <PriorityBadge level={event.level} compact />
+              <h3>{event.title}</h3>
+              <p>{event.detail}</p>
+            </div>
+            <Icon name="chevron" />
+          </article>
+        ))}
+      </section>
+    </Page>
+  )
+}
 
-        {/* Quick */}
-        <button style={{
-          width: '100%', padding: '11px', borderRadius: 12,
-          background: C.orangeLight, border: `1.5px solid ${C.orange}`,
-          color: C.orange, fontSize: 13, fontWeight: 700, cursor: 'pointer', marginBottom: 14,
-        }}>↩ 刚才说了什么？</button>
+function ProfileScreen({
+  onNavigate,
+}: {
+  onNavigate: (screen: Screen) => void
+}) {
+  return (
+    <Page>
+      <StatusBar />
+      <AppHeader title="设备与设置" eyebrow="我的声脉" />
+      <section className="profile-intro section-frame">
+        <span className="profile-intro__seal">林</span>
+        <div>
+          <span className="section-kicker">下午好</span>
+          <h2>让提醒保持清楚、克制。</h2>
+          <p>已使用声脉 3 天 · 今日识别 12 条重要信息</p>
+        </div>
+      </section>
+      <button
+        className="connected-watch-card"
+        onClick={() => onNavigate("watchPreview")}
+      >
+        <span className="connected-watch-card__device">
+          <Icon name="watch" size={28} />
+        </span>
+        <span>
+          <small>已连接设备</small>
+          <strong>Lin 的智能手表</strong>
+          <em>
+            <i />
+            连接稳定 · 电量 82%
+          </em>
+        </span>
+        <Icon name="chevron" />
+      </button>
+      <section className="settings-list">
+        <button onClick={() => onNavigate("vibration")}>
+          <span>
+            <Icon name="vibrate" />
+          </span>
+          <div>
+            <strong>震动与优先级</strong>
+            <small>设置四级声音提醒方式</small>
+          </div>
+          <Icon name="chevron" />
+        </button>
+        <button onClick={() => onNavigate("preferences")}>
+          <span>
+            <Icon name="type" />
+          </span>
+          <div>
+            <strong>字幕与显示</strong>
+            <small>字号、对比度和记录时长</small>
+          </div>
+          <Icon name="chevron" />
+        </button>
+        <button onClick={() => onNavigate("history")}>
+          <span>
+            <Icon name="history" />
+          </span>
+          <div>
+            <strong>声音记录</strong>
+            <small>查看或清除识别内容</small>
+          </div>
+          <Icon name="chevron" />
+        </button>
+        <button>
+          <span>
+            <Icon name="shield" />
+          </span>
+          <div>
+            <strong>隐私与权限</strong>
+            <small>麦克风和本地处理说明</small>
+          </div>
+          <Icon name="chevron" />
+        </button>
+      </section>
+      <footer className="profile-footer">
+        <PulseMark />
+        <span>声脉 SoundPulse · Prototype 1.0</span>
+        <small>为更平等的公共信息而设计</small>
+      </footer>
+    </Page>
+  )
+}
 
-        {/* Filters */}
-        <div style={{ display: 'flex', gap: 6, overflowX: 'auto' }}>
-          {filters.map(f => (
-            <button key={f} onClick={() => setFilter(f)} style={{
-              padding: '6px 14px', borderRadius: 20,
-              background: filter === f ? C.primary : C.card,
-              color: filter === f ? 'white' : C.textMid,
-              border: `1px solid ${filter === f ? 'transparent' : C.border}`,
-              fontSize: 12, fontWeight: filter === f ? 700 : 400, cursor: 'pointer',
-              whiteSpace: 'nowrap',
-            }}>{f}</button>
+function VibrationScreen({ onBack }: { onBack: () => void }) {
+  const [strength, setStrength] = useState("标准")
+  const [enabled, setEnabled] = useState<Record<Priority, boolean>>({
+    P1: true,
+    P2: true,
+    P3: true,
+    P4: false,
+  })
+  return (
+    <Page>
+      <StatusBar />
+      <AppHeader title="震动与优先级" eyebrow="手表提醒" onBack={onBack} />
+      <section className="vibration-hero">
+        <span className="vibration-hero__icon">
+          <Icon name="vibrate" size={34} />
+        </span>
+        <div>
+          <span className="section-kicker">腕上反馈</span>
+          <h2>
+            让每一级提醒
+            <br />
+            有自己的节奏。
+          </h2>
+        </div>
+        <button>测试</button>
+      </section>
+      <section className="setting-card">
+        <div>
+          <span className="field-label">整体震动强度</span>
+          <p>紧急提醒始终比所选强度高一级。</p>
+        </div>
+        <div className="segmented">
+          {["轻柔", "标准", "明显"].map((item) => (
+            <button
+              key={item}
+              className={strength === item ? "is-active" : ""}
+              onClick={() => setStrength(item)}
+            >
+              {item}
+            </button>
           ))}
         </div>
-      </div>
-
-      <div style={{ flex: 1, overflow: 'auto', padding: '4px 24px 24px' }}>
-        {filtered.map((ev, i) => (
-          <div key={i} style={{ display: 'flex', gap: 12, marginBottom: 10 }}>
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', width: 34, flexShrink: 0 }}>
-              <div style={{
-                width: 32, height: 32, borderRadius: '50%',
-                background: ev.color + '1A', border: `1.5px solid ${ev.color}`,
-                display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 14,
-              }}>{ev.icon}</div>
-              {i < filtered.length - 1 && (
-                <div style={{ width: 1, flex: 1, background: C.border, marginTop: 4 }} />
-              )}
+      </section>
+      <section className="priority-settings">
+        <div className="section-title">
+          <span>
+            <small>信息层级</small>
+            <h3>推送到手表的声音</h3>
+          </span>
+        </div>
+        {(["P1", "P2", "P3", "P4"] as Priority[]).map((level, index) => (
+          <div
+            className={`priority-setting priority-setting--${level.toLowerCase()}`}
+            key={level}
+          >
+            <span className="priority-setting__index">
+              {String(index + 1).padStart(2, "0")}
+            </span>
+            <span>
+              <PriorityBadge level={level} compact />
+              <strong>{priorityMeta[level].detail}</strong>
+              <small>
+                {level === "P1"
+                  ? "三次强震动"
+                  : level === "P2"
+                    ? "两次清晰震动"
+                    : level === "P3"
+                      ? "一次轻震动"
+                      : "柔和节奏震动"}
+              </small>
+            </span>
+            <div className="pattern-mini">
+              <i />
+              <i />
+              <i />
             </div>
-            <div style={{
-              flex: 1, background: C.card, borderRadius: 14, padding: '12px 14px',
-              border: `1px solid ${C.border}`, marginBottom: 4,
-            }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 5 }}>
-                <PBadge level={ev.priority} />
-                <span style={{ fontSize: 11, color: C.textMuted, fontFamily: 'DM Mono, monospace' }}>{ev.time}</span>
-              </div>
-              <div style={{ fontSize: 13, color: C.text, lineHeight: 1.5 }}>{ev.text}</div>
-            </div>
+            <Toggle
+              checked={enabled[level]}
+              onChange={() =>
+                setEnabled({ ...enabled, [level]: !enabled[level] })
+              }
+              label={`${level} 提醒`}
+            />
           </div>
         ))}
-      </div>
-    </div>
+      </section>
+    </Page>
   )
 }
 
-function ProfileScreen({ setScreen }: { setScreen: (s: Screen) => void }) {
+function PreferencesScreen({ onBack }: { onBack: () => void }) {
+  const [size, setSize] = useState("中")
+  const [contrast, setContrast] = useState(false)
+  const [motion, setMotion] = useState(true)
+  const [retention, setRetention] = useState("24 小时")
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg, overflow: 'auto' }}>
-      <div style={{ background: C.primary }}>
-        <StatusBar light />
-        <div style={{ padding: '4px 24px 28px' }}>
-          <div style={{ fontSize: 17, fontWeight: 700, color: 'white', marginBottom: 18 }}>我的</div>
-          <div style={{ display: 'flex', gap: 16, alignItems: 'center' }}>
-            <div style={{
-              width: 56, height: 56, borderRadius: '50%', background: C.mint,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 26,
-            }}>👤</div>
-            <div>
-              <div style={{ fontSize: 17, fontWeight: 700, color: 'white' }}>张女士</div>
-              <div style={{ fontSize: 12, color: 'rgba(255,255,255,0.5)' }}>听障用户 · 声脉使用中</div>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div style={{ padding: '16px 24px 0' }}>
-        <div style={{
-          background: C.mintLight, borderRadius: 16, padding: '14px 16px',
-          display: 'flex', gap: 12, alignItems: 'center',
-        }}>
-          <span style={{ fontSize: 26 }}>⌚</span>
-          <div style={{ flex: 1 }}>
-            <div style={{ fontSize: 14, fontWeight: 700, color: C.primary }}>Apple Watch 已连接</div>
-            <div style={{ fontSize: 12, color: C.textMid }}>电量 82% · 进阶手表模式</div>
-          </div>
-          <button onClick={() => setScreen('watchPreview')} style={{
-            background: C.card, border: 'none', borderRadius: 8,
-            padding: '7px 14px', color: C.primary, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-          }}>预览</button>
-        </div>
-      </div>
-
-      {[
-        {
-          title: '提醒与手表',
-          items: [
-            { icon: '📳', label: '震动与提醒设置', screen: 'vibSettings' as Screen },
-            { icon: '⌚', label: '手表界面预览', screen: 'watchPreview' as Screen },
-          ],
-        },
-        {
-          title: '显示与字幕',
-          items: [
-            { icon: '🔤', label: '个性化与隐私设置', screen: 'personalSettings' as Screen },
-          ],
-        },
-        {
-          title: '关于声脉',
-          items: [
-            { icon: '🔒', label: '本地处理说明', screen: null },
-            { icon: '❓', label: '帮助与反馈', screen: null },
-          ],
-        },
-      ].map((group, gi) => (
-        <div key={gi} style={{ padding: '16px 24px 0' }}>
-          <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 700, marginBottom: 8, letterSpacing: 0.5 }}>
-            {group.title.toUpperCase()}
-          </div>
-          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}` }}>
-            {group.items.map((item, ii) => (
-              <button key={ii} onClick={() => item.screen && setScreen(item.screen)} style={{
-                width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                padding: '14px 16px', border: 'none', background: 'transparent',
-                borderBottom: ii < group.items.length - 1 ? `1px solid ${C.border}` : 'none',
-                cursor: item.screen ? 'pointer' : 'default', textAlign: 'left',
-              }}>
-                <span style={{ fontSize: 20 }}>{item.icon}</span>
-                <span style={{ flex: 1, fontSize: 14, color: C.text }}>{item.label}</span>
-                {item.screen && <span style={{ color: C.textMuted, fontSize: 18, lineHeight: 1 }}>›</span>}
-              </button>
-            ))}
-          </div>
-        </div>
-      ))}
-      <div style={{ height: 24 }} />
-    </div>
-  )
-}
-
-function VibSettingsScreen({ onBack }: { onBack: () => void }) {
-  const [strength, setStrength] = useState(2)
-  const [dnd, setDnd] = useState(false)
-  const [patterns, setPatterns] = useState([true, true, true, true, false])
-
-  const patternData = [
-    { icon: '🚨', label: 'P1 紧急危险', pattern: '●●●●', color: C.red },
-    { icon: '🔔', label: 'P2 叫号/叫名', pattern: '●● ●', color: C.orange },
-    { icon: '💬', label: 'P3 说话人切换', pattern: '●', color: C.mint },
-    { icon: '📢', label: '重要广播', pattern: '●●', color: C.orange },
-    { icon: '🎵', label: 'P4 环境声音', pattern: '－', color: C.muted },
-  ]
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg, overflow: 'auto' }}>
+    <Page>
       <StatusBar />
-      <NavBar title="震动与提醒设置" onBack={onBack} />
-      <div style={{ padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
+      <AppHeader title="字幕与显示" eyebrow="个性化" onBack={onBack} />
+      <section
+        className={`preference-preview ${contrast ? "is-contrast" : ""}`}
+      >
+        <small>字幕预览</small>
+        <p className={`font-${size}`}>入口右侧集合，开放时间到下午五点。</p>
+        <span>讲者 2 · 正前方</span>
+      </section>
+      <section className="setting-card">
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>震动强度</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {['轻', '中', '强', '最强'].map((l, i) => (
-              <button key={i} onClick={() => setStrength(i)} style={{
-                flex: 1, padding: '13px 0', borderRadius: 10,
-                border: `1.5px solid ${strength === i ? C.primary : C.border}`,
-                background: strength === i ? C.mintLight : C.card,
-                color: strength === i ? C.primary : C.textMid,
-                fontSize: 13, fontWeight: 500, cursor: 'pointer',
-              }}>{l}</button>
-            ))}
-          </div>
+          <span className="field-label">字幕字号</span>
+          <p>同时影响手机和手表的关键信息。</p>
         </div>
-
+        <div className="segmented">
+          {["小", "中", "大"].map((item) => (
+            <button
+              key={item}
+              className={size === item ? "is-active" : ""}
+              onClick={() => setSize(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </section>
+      <section className="setting-list-plain">
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>震动模式</div>
-          <div style={{ background: C.card, borderRadius: 16, border: `1px solid ${C.border}` }}>
-            {patternData.map((p, i) => (
-              <div key={i} style={{
-                display: 'flex', alignItems: 'center', gap: 12, padding: '14px 16px',
-                borderBottom: i < patternData.length - 1 ? `1px solid ${C.border}` : 'none',
-              }}>
-                <span style={{ fontSize: 20 }}>{p.icon}</span>
-                <div style={{ flex: 1 }}>
-                  <div style={{ fontSize: 13, fontWeight: 500, color: C.text }}>{p.label}</div>
-                  <div style={{
-                    fontSize: 16, letterSpacing: 4, color: p.color, marginTop: 2,
-                    fontFamily: 'DM Mono, monospace',
-                  }}>{p.pattern}</div>
-                </div>
-                <Toggle on={patterns[i]} onChange={() => setPatterns(prev => {
-                  const next = [...prev]; next[i] = !next[i]; return next
-                })} />
-              </div>
-            ))}
-          </div>
+          <span>
+            <strong>高对比显示</strong>
+            <small>深色背景与白色字幕</small>
+          </span>
+          <Toggle
+            checked={contrast}
+            onChange={() => setContrast(!contrast)}
+            label="高对比显示"
+          />
         </div>
-
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: C.card, borderRadius: 14, padding: '16px',
-          border: `1px solid ${C.border}`,
-        }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>免打扰模式</div>
-            <div style={{ fontSize: 12, color: C.textMuted }}>P1紧急信息仍会提醒</div>
-          </div>
-          <Toggle on={dnd} onChange={() => setDnd(!dnd)} />
-        </div>
-      </div>
-      <div style={{ height: 24 }} />
-    </div>
-  )
-}
-
-function PersonalSettingsScreen({ onBack }: { onBack: () => void }) {
-  const [fontSize, setFontSize] = useState(1)
-  const [highContrast, setHighContrast] = useState(false)
-  const [autoDelete, setAutoDelete] = useState(true)
-  const [retention, setRetention] = useState(1)
-
-  return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg, overflow: 'auto' }}>
-      <StatusBar />
-      <NavBar title="个性化与隐私" onBack={onBack} />
-      <div style={{ padding: '0 24px', display: 'flex', flexDirection: 'column', gap: 18 }}>
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>字幕字号</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {(['小', '中', '大'] as const).map((s, i) => (
-              <button key={i} onClick={() => setFontSize(i)} style={{
-                flex: 1, padding: '16px 0', borderRadius: 12,
-                border: `1.5px solid ${fontSize === i ? C.primary : C.border}`,
-                background: fontSize === i ? C.mintLight : C.card,
-                color: fontSize === i ? C.primary : C.textMid,
-                fontSize: [13, 17, 22][i], fontWeight: 500, cursor: 'pointer',
-              }}>{s}</button>
-            ))}
-          </div>
+          <span>
+            <strong>减少动态效果</strong>
+            <small>关闭脉冲和位移动画</small>
+          </span>
+          <Toggle
+            checked={motion}
+            onChange={() => setMotion(!motion)}
+            label="减少动态效果"
+          />
         </div>
-
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: C.card, borderRadius: 14, padding: '14px 16px', border: `1px solid ${C.border}`,
-        }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>高对比度</div>
-            <div style={{ fontSize: 12, color: C.textMuted }}>深色背景，白色字幕</div>
-          </div>
-          <Toggle on={highContrast} onChange={() => setHighContrast(!highContrast)} />
-        </div>
-
+      </section>
+      <section className="setting-card">
         <div>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.textMuted, marginBottom: 10 }}>字幕保存时长</div>
-          <div style={{ display: 'flex', gap: 8 }}>
-            {['6小时', '24小时', '7天'].map((opt, i) => (
-              <button key={i} onClick={() => setRetention(i)} style={{
-                flex: 1, padding: '10px 0', borderRadius: 10,
-                border: `1.5px solid ${retention === i ? C.primary : C.border}`,
-                background: retention === i ? C.mintLight : C.card,
-                color: retention === i ? C.primary : C.textMid,
-                fontSize: 12, fontWeight: 500, cursor: 'pointer',
-              }}>{opt}</button>
-            ))}
-          </div>
+          <span className="field-label">文字记录保留时间</span>
+          <p>到期后自动从本机删除。</p>
         </div>
-
-        <div style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          background: C.card, borderRadius: 14, padding: '14px 16px', border: `1px solid ${C.border}`,
-        }}>
-          <div>
-            <div style={{ fontSize: 14, fontWeight: 500, color: C.text }}>到期自动删除</div>
-            <div style={{ fontSize: 12, color: C.textMuted }}>按保存时长自动清除</div>
-          </div>
-          <Toggle on={autoDelete} onChange={() => setAutoDelete(!autoDelete)} />
+        <div className="retention-options">
+          {["不保存", "24 小时", "7 天"].map((item) => (
+            <button
+              key={item}
+              className={retention === item ? "is-active" : ""}
+              onClick={() => setRetention(item)}
+            >
+              {item}
+            </button>
+          ))}
         </div>
-
-        <div style={{
-          background: C.mintLight, borderRadius: 16, padding: '14px 16px',
-          border: `1px solid ${C.mint}`,
-        }}>
-          <div style={{ fontSize: 12, color: C.primary, fontWeight: 700, marginBottom: 6 }}>🔒 本地处理说明</div>
-          <div style={{ fontSize: 12, color: C.textMid, lineHeight: 1.8 }}>
-            声脉在您的设备本地完成所有声音识别，不会将录音或字幕上传至服务器。您的声音数据始终留在设备上。
-          </div>
-        </div>
-
-        <button style={{
-          padding: 14, borderRadius: 14, background: C.redLight,
-          border: `1px solid ${C.red}30`, color: C.red, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-        }}>清除所有字幕记录</button>
-      </div>
-      <div style={{ height: 24 }} />
-    </div>
+      </section>
+    </Page>
   )
 }
 
 function WatchPreviewScreen({ onBack }: { onBack: () => void }) {
-  const watchScreens = [
-    { label: '紧急危险', bg: C.red, icon: '⚠️', level: 'P1', text: '右后方\n车辆靠近', action: '停下观察' },
-    { label: '叫号提醒', bg: C.orange, icon: '🔔', level: 'P2', text: '123号\n张女士', action: '前往3号窗口' },
-    { label: '对话切换', bg: C.primaryMid, icon: '💬', level: 'P3', text: '工作人员\n请出示证件', action: '在手机查看' },
-    { label: '重要广播', bg: '#2D5A4A', icon: '📢', level: 'P3', text: '下午5点\n停止服务', action: '已知晓' },
-    { label: '快速回应', bg: C.text, icon: '✉️', level: '', text: '请稍等', action: '发送', sub: '我正在阅读字幕' },
+  const states = [
+    {
+      level: "P2",
+      icon: "ticket",
+      title: "A018",
+      subtitle: "请前往 18 号窗口",
+      action: "确认",
+      tone: "gold",
+    },
+    {
+      level: "P3",
+      icon: "message",
+      title: "讲者 2",
+      subtitle: "入口右侧集合",
+      action: "完整字幕",
+      tone: "blue",
+    },
+    {
+      level: "P1",
+      icon: "car",
+      title: "车辆鸣笛",
+      subtitle: "后方 · 请注意",
+      action: "已知晓",
+      tone: "red",
+    },
+    {
+      level: "P4",
+      icon: "music",
+      title: "轻快节奏",
+      subtitle: "附近表演开始",
+      action: "感受节拍",
+      tone: "purple",
+    },
   ]
-
   return (
-    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', background: C.bg, overflow: 'auto' }}>
+    <Page>
       <StatusBar />
-      <NavBar title="手表界面预览" onBack={onBack} />
-      <div style={{ padding: '0 24px 24px' }}>
-        <div style={{ fontSize: 13, color: C.textMuted, marginBottom: 24, lineHeight: 1.7 }}>
-          当声脉检测到声音事件，智能手表将显示以下界面。手表只显示最关键信息，完整内容请在手机查看。
-        </div>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 16, justifyContent: 'center' }}>
-          {watchScreens.map((ws, i) => (
-            <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-              <div style={{
-                width: 128, height: 152, borderRadius: 36,
-                background: ws.bg, padding: '16px 14px 13px',
-                display: 'flex', flexDirection: 'column',
-                boxShadow: '0 12px 32px rgba(0,0,0,0.35), inset 0 0 0 1px rgba(255,255,255,0.07)',
-                position: 'relative',
-              }}>
-                {/* Crown */}
-                <div style={{
-                  position: 'absolute', right: -5, top: 38,
-                  width: 5, height: 28, background: '#555', borderRadius: 3,
-                }} />
-                {/* Top row */}
-                <div style={{
-                  display: 'flex', justifyContent: 'space-between',
-                  alignItems: 'center', marginBottom: 10,
-                }}>
-                  <span style={{ fontSize: 22 }}>{ws.icon}</span>
-                  {ws.level && (
-                    <span style={{
-                      fontSize: 9, fontWeight: 700, color: 'rgba(255,255,255,0.8)',
-                      background: 'rgba(255,255,255,0.18)', borderRadius: 4, padding: '1px 5px',
-                    }}>{ws.level}</span>
-                  )}
-                </div>
-                {/* Main text */}
-                <div style={{
-                  fontSize: 15, fontWeight: 700, color: 'white',
-                  lineHeight: 1.4, flex: 1, whiteSpace: 'pre-line',
-                }}>{ws.text}</div>
-                {ws.sub && (
-                  <div style={{ fontSize: 9, color: 'rgba(255,255,255,0.55)', marginBottom: 5 }}>
-                    {ws.sub}
-                  </div>
-                )}
-                {/* Action */}
-                <div style={{
-                  background: 'rgba(255,255,255,0.18)', borderRadius: 10,
-                  padding: '6px 0', textAlign: 'center',
-                  fontSize: 11, fontWeight: 700, color: 'rgba(255,255,255,0.9)',
-                }}>{ws.action}</div>
+      <AppHeader title="手表界面" eyebrow="深色 OLED" onBack={onBack} />
+      <section className="watch-preview-intro">
+        <span className="section-kicker">只显示最重要的一件事</span>
+        <h2>
+          腕上一瞥，
+          <br />
+          不打断眼前的生活。
+        </h2>
+        <p>完整字幕和历史信息始终留在手机端。</p>
+      </section>
+      <section className="watch-grid">
+        {states.map((state) => (
+          <article
+            className={`watch-mock watch-mock--${state.tone}`}
+            key={state.title}
+          >
+            <div className="watch-mock__screen">
+              <header>
+                <Icon name={state.icon as IconName} />
+                <span>{state.level}</span>
+              </header>
+              <strong>{state.title}</strong>
+              <p>{state.subtitle}</p>
+              <div className="watch-haptic">
+                <i />
+                <i />
+                <i />
               </div>
-              <div style={{ fontSize: 11, color: C.textMuted, fontWeight: 500 }}>{ws.label}</div>
+              <button>{state.action}</button>
             </div>
-          ))}
+            <span>
+              {state.level === "P1"
+                ? "紧急警示"
+                : state.level === "P2"
+                  ? "叫号提醒"
+                  : state.level === "P3"
+                    ? "当前对话"
+                    : "音乐节奏"}
+            </span>
+          </article>
+        ))}
+      </section>
+      <section className="watch-principle section-frame">
+        <PulseMark />
+        <div>
+          <strong>手表负责提醒，手机负责理解。</strong>
+          <p>声脉不会把整段字幕塞进小屏幕，也不会持续打扰用户。</p>
         </div>
-      </div>
+      </section>
+    </Page>
+  )
+}
+
+function EmergencyOverlay({ onDismiss }: { onDismiss: () => void }) {
+  const [confirmed, setConfirmed] = useState(false)
+  return (
+    <div
+      className={`emergency-overlay ${confirmed ? "is-confirmed" : ""}`}
+      role="alertdialog"
+      aria-modal="true"
+      aria-label="紧急提醒"
+    >
+      <StatusBar inverse />
+      <div className="emergency-overlay__pattern" />
+      <section>
+        <div className="emergency-icon">
+          <Icon name={confirmed ? "check" : "car"} size={42} />
+        </div>
+        <PriorityBadge level="P1" />
+        <span className="section-kicker">
+          {confirmed ? "提醒已确认" : "后方 · 车辆鸣笛"}
+        </span>
+        <h2>{confirmed ? "请继续留意周围环境" : "请立即注意后方"}</h2>
+        <p>
+          {confirmed
+            ? "手表已停止震动。"
+            : "检测到持续 2 秒的车辆鸣笛，距离可能较近。"}
+        </p>
+        <div className="emergency-haptic">
+          <i />
+          <i />
+          <i />
+          <span>三次强震动</span>
+        </div>
+      </section>
+      <footer>
+        <button
+          className="emergency-primary"
+          onClick={() => (confirmed ? onDismiss() : setConfirmed(true))}
+        >
+          {confirmed ? "返回首页" : "我已注意"}
+          <Icon name="check" />
+        </button>
+        {!confirmed && (
+          <button className="emergency-secondary" onClick={onDismiss}>
+            关闭提醒
+          </button>
+        )}
+      </footer>
     </div>
   )
 }
 
-// ─── Root ─────────────────────────────────────────────────────────────────────
-
 export default function App() {
-  const [screen, setScreen] = useState<Screen>('splash')
-  const [tab, setTab] = useState<Tab>('hear')
-  const [isListening, setIsListening] = useState(false)
-  const [showEmergency, setShowEmergency] = useState(false)
+  const initialScreen = (() => {
+    const candidate = new URLSearchParams(window.location.search).get(
+      "screen",
+    ) as Screen | null
+    const allowed: Screen[] = [
+      "splash",
+      "onboarding",
+      "watchConnect",
+      "home",
+      "conversation",
+      "multi",
+      "callout",
+      "service",
+      "history",
+      "profile",
+      "vibration",
+      "preferences",
+      "watchPreview",
+    ]
+    return candidate && allowed.includes(candidate) ? candidate : "splash"
+  })()
+  const [screen, setScreen] = useState<Screen>(initialScreen)
+  const [tab, setTab] = useState<Tab>(
+    initialScreen === "conversation" ||
+      initialScreen === "service" ||
+      initialScreen === "profile"
+      ? initialScreen
+      : "home",
+  )
+  const [listening, setListening] = useState(true)
+  const [emergency, setEmergency] = useState(false)
 
-  const tabScreens: Screen[] = ['hear', 'communicate', 'record', 'profile']
-  const isTabScreen = tabScreens.includes(screen)
-
-  const handleSetScreen = (s: Screen) => {
-    setScreen(s)
-    if (tabScreens.includes(s)) setTab(s as Tab)
+  const tabToScreen: Record<Tab, Screen> = useMemo(
+    () => ({
+      home: "home",
+      conversation: "conversation",
+      service: "service",
+      profile: "profile",
+    }),
+    [],
+  )
+  const tabScreens: Screen[] = ["home", "conversation", "service", "profile"]
+  const navigate = (next: Screen) => {
+    setScreen(next)
+    const entry = Object.entries(tabToScreen).find(
+      ([, value]) => value === next,
+    )
+    if (entry) setTab(entry[0] as Tab)
   }
 
+  const content = (() => {
+    switch (screen) {
+      case "splash":
+        return <SplashScreen onNext={() => setScreen("onboarding")} />
+      case "onboarding":
+        return <OnboardingScreen onComplete={() => setScreen("watchConnect")} />
+      case "watchConnect":
+        return <WatchConnectScreen onComplete={() => navigate("home")} />
+      case "home":
+        return (
+          <HomeScreen
+            onNavigate={navigate}
+            listening={listening}
+            setListening={setListening}
+            onEmergency={() => setEmergency(true)}
+          />
+        )
+      case "conversation":
+        return <ConversationScreen />
+      case "multi":
+        return <MultiPersonScreen onBack={() => navigate("home")} />
+      case "callout":
+        return <CalloutScreen onBack={() => navigate("home")} />
+      case "service":
+        return <ServiceScreen />
+      case "history":
+        return <HistoryScreen onBack={() => navigate(tab)} />
+      case "profile":
+        return <ProfileScreen onNavigate={navigate} />
+      case "vibration":
+        return <VibrationScreen onBack={() => navigate("profile")} />
+      case "preferences":
+        return <PreferencesScreen onBack={() => navigate("profile")} />
+      case "watchPreview":
+        return (
+          <WatchPreviewScreen
+            onBack={() =>
+              navigate(tabScreens.includes(screen) ? screen : "profile")
+            }
+          />
+        )
+      default:
+        return null
+    }
+  })()
+
   return (
-    <div style={{
-      minHeight: '100vh', background: '#1A2E22',
-      display: 'flex', alignItems: 'center', justifyContent: 'center',
-      padding: 24, fontFamily: "'Noto Sans SC', sans-serif",
-    }}>
-      <div style={{
-        width: 390, height: 844, borderRadius: 46,
-        overflow: 'hidden', position: 'relative',
-        boxShadow: '0 48px 96px rgba(0,0,0,0.7), 0 0 0 8px #222, 0 0 0 9.5px #3A3A3A',
-        display: 'flex', flexDirection: 'column', background: C.bg,
-        flexShrink: 0,
-      }}>
-        {/* Emergency overlay */}
-        {showEmergency && (
-          <EmergencyScreen onDismiss={() => setShowEmergency(false)} />
+    <div className="prototype-stage">
+      <div className="ambient-copy" aria-hidden="true">
+        <span>Living Structure + AI</span>
+        <strong>
+          声有层级，
+          <br />
+          信息有中心。
+        </strong>
+        <small>SoundPulse · Inclusive wearable experience</small>
+      </div>
+      <div className="phone-shell">
+        <div className="phone-island" />
+        {emergency ? (
+          <EmergencyOverlay onDismiss={() => setEmergency(false)} />
+        ) : (
+          content
         )}
-
-        {!showEmergency && (() => {
-          switch (screen) {
-            case 'splash':
-              return <SplashScreen onNext={() => setScreen('onboarding')} />
-            case 'onboarding':
-              return <OnboardingScreen onComplete={() => setScreen('watchConnect')} />
-            case 'watchConnect':
-              return <WatchConnectScreen onComplete={() => handleSetScreen('hear')} />
-            case 'hear':
-              return (
-                <HearScreen
-                  setScreen={handleSetScreen}
-                  isListening={isListening}
-                  setIsListening={setIsListening}
-                  setShowEmergency={setShowEmergency}
-                />
-              )
-            case 'realtime':
-              return <RealtimeScreen onBack={() => handleSetScreen('hear')} />
-            case 'multi':
-              return <MultiPersonScreen onBack={() => handleSetScreen('hear')} />
-            case 'callout':
-              return <CalloutScreen onBack={() => handleSetScreen('hear')} />
-            case 'communicate':
-              return <CommunicateScreen />
-            case 'record':
-              return <RecordScreen />
-            case 'profile':
-              return <ProfileScreen setScreen={handleSetScreen} />
-            case 'vibSettings':
-              return <VibSettingsScreen onBack={() => handleSetScreen('profile')} />
-            case 'personalSettings':
-              return <PersonalSettingsScreen onBack={() => handleSetScreen('profile')} />
-            case 'watchPreview':
-              return <WatchPreviewScreen onBack={() => handleSetScreen('profile')} />
-            default:
-              return null
-          }
-        })()}
-
-        {!showEmergency && isTabScreen && (
-          <BottomNav tab={tab} setTab={setTab} setScreen={handleSetScreen} />
+        {!emergency && tabScreens.includes(screen) && (
+          <BottomNav
+            tab={tab}
+            onChange={(next) => {
+              setTab(next)
+              setScreen(tabToScreen[next])
+            }}
+          />
         )}
       </div>
     </div>

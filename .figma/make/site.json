@@ -1,10 +1,12 @@
 {
-  "description": "Create and customize app interfaces effortlessly with intuitive design tools that streamline development for designers and developers alike.",
+  "title": "声脉 SoundPulse",
+  "description": "连接现有智能手表的听障声音信息辅助应用，让重要的声音成为触手可及的信息。",
+  "language": "zh-CN",
   "robots": {
     "index": false
   },
   "accessibility": {
-    "addBypassLinks": false,
+    "addBypassLinks": true,
     "ignoreReducedMotion": false
   }
 }
