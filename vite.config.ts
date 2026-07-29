@@ -2,6 +2,8 @@ import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
+import os from 'node:os'
+import fs from 'node:fs'
 
 import siteConfiguration from './.figma/make/site.json'
 
@@ -23,6 +25,7 @@ export default defineConfig(({ mode }) => {
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
+      renovationImageApi(),
     ],
     resolve: {
       alias: {
@@ -41,6 +44,137 @@ export default defineConfig(({ mode }) => {
     },
   }
 })
+
+function resolveRenovationApiKey() {
+  const runtimeKey = process.env.IMAGE_API_KEY || process.env.YINHE_API_KEY || process.env.API_KEY
+  if (runtimeKey?.trim()) return runtimeKey.trim()
+
+  try {
+    const secretFile = path.join(os.homedir(), '.codex', 'secrets', 'yinhe-ai.env')
+    if (!fs.existsSync(secretFile)) return ''
+    const match = fs.readFileSync(secretFile, 'utf8').match(/^API_KEY\s*=\s*["']?([^\r\n"']+)["']?/m)
+    return match?.[1]?.trim() || ''
+  } catch {
+    return ''
+  }
+}
+
+function renovationImageApi(): Plugin {
+  const apiBase = 'https://api.lk888.ai/api'
+
+  return {
+    name: 'qigou-renovation-image-api',
+    apply: 'serve',
+    configureServer(server) {
+      server.middlewares.use(async (req, res, next) => {
+        const requestUrl = new URL(req.url || '/', 'http://localhost')
+        const isGenerate = requestUrl.pathname === '/api/renovation/generate'
+        const isStatus = requestUrl.pathname === '/api/renovation/status'
+        if (!isGenerate && !isStatus) return next()
+
+        const send = (status: number, payload: unknown) => {
+          res.statusCode = status
+          res.setHeader('Content-Type', 'application/json; charset=utf-8')
+          res.setHeader('Cache-Control', 'no-store')
+          res.end(JSON.stringify(payload))
+        }
+
+        const apiKey = resolveRenovationApiKey()
+        if (!apiKey) {
+          send(503, { error: '图像生成服务尚未配置 API_KEY' })
+          return
+        }
+        const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
+
+        try {
+          if (isStatus) {
+            const taskId = requestUrl.searchParams.get('task_id')
+            if (!taskId || !/^\d+$/.test(taskId)) {
+              send(400, { error: '缺少有效的 task_id' })
+              return
+            }
+            const upstream = await fetch(`${apiBase}/v1/skills/task-status?task_id=${encodeURIComponent(taskId)}`, { headers })
+            const payload = await upstream.json() as Record<string, unknown>
+            if (!upstream.ok) {
+              send(upstream.status, { error: String(payload.error || payload.detail || payload.status || '无法查询生成任务') })
+              return
+            }
+            send(200, {
+              task_id: payload.task_id,
+              state: payload.state,
+              status: payload.status,
+              status_group: payload.status_group,
+              progress: payload.progress,
+              is_final: payload.is_final,
+              result_url: payload.result_url,
+              error: payload.error,
+              duration_seconds: payload.duration_seconds,
+            })
+            return
+          }
+
+          if (req.method !== 'POST') {
+            send(405, { error: '仅支持 POST 请求' })
+            return
+          }
+
+          const chunks: Buffer[] = []
+          let received = 0
+          for await (const chunk of req) {
+            const buffer = Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk)
+            received += buffer.length
+            if (received > 50 * 1024 * 1024) {
+              send(413, { error: '请求体超过 50 MB 限制' })
+              return
+            }
+            chunks.push(buffer)
+          }
+          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { prompt?: string; image?: string; size?: string; quality?: string }
+          if (!body.prompt || body.prompt.length < 40 || body.prompt.length > 8000) {
+            send(400, { error: '改造提示词长度无效' })
+            return
+          }
+          if (!body.image?.startsWith('data:image/')) {
+            send(400, { error: '请上传有效的 JPG、PNG 或 WebP 空间图片' })
+            return
+          }
+
+          const balanceResponse = await fetch(`${apiBase}/v1/skills/balance`, { headers })
+          const balancePayload = await balanceResponse.json() as { balance?: number; detail?: string; error?: string }
+          if (!balanceResponse.ok) {
+            send(balanceResponse.status, { error: balancePayload.error || balancePayload.detail || '无法检查图像生成余额' })
+            return
+          }
+          if (Number(balancePayload.balance || 0) <= 0) {
+            send(402, { error: '图像生成算力余额不足' })
+            return
+          }
+
+          const payload = {
+            model: 'gpt-image-2',
+            prompt: body.prompt,
+            params: {
+              prompt: body.prompt,
+              images: [body.image],
+              size: ['1024x1024', '1024x1536', '1536x1024', '960x1280', '1280x960', '1920x1088'].includes(body.size || '') ? body.size : '1536x1024',
+              quality: ['low', 'medium', 'high', 'auto'].includes(body.quality || '') ? body.quality : 'medium',
+            },
+          }
+          const upstream = await fetch(`${apiBase}/v1/media/generate`, { method: 'POST', headers, body: JSON.stringify(payload) })
+          const upstreamPayload = await upstream.json() as { data?: { task_id?: string | number }; error?: string; detail?: string; msg?: string }
+          const taskId = upstreamPayload.data?.task_id
+          if (!upstream.ok || !taskId) {
+            send(upstream.status || 502, { error: upstreamPayload.error || upstreamPayload.detail || upstreamPayload.msg || '图像任务提交失败' })
+            return
+          }
+          send(200, { task_id: taskId, model: payload.model, balance: balancePayload.balance })
+        } catch (error) {
+          send(500, { error: error instanceof Error ? error.message : '图像生成服务发生未知错误' })
+        }
+      })
+    },
+  }
+}
 
 type FigmaSiteConfiguration = {
   title?: string

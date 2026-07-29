@@ -12,3 +12,6 @@ logs/
 .claude-replay.*
 .tmp-*
 tmp/
+
+# Local Netlify folder
+.netlify

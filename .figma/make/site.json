@@ -1,6 +1,6 @@
 {
-  "title": "声脉 SoundPulse",
-  "description": "连接现有智能手表的听障声音信息辅助应用，让重要的声音成为触手可及的信息。",
+  "title": "栖构 Living Home",
+  "description": "基于 Living Structure 十五属性的 AI 空间改造智能体：从居住需求或城市漫步发现出发，完成诊断、方案、预算、效果图生成和前后复评。",
   "language": "zh-CN",
   "robots": {
     "index": false
