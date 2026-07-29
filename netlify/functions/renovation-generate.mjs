@@ -1,4 +1,5 @@
 import { API_BASE, apiKey, headers, response, safeJson } from "./_yinhe.mjs"
+import { consumeAiQuota } from "./_netlify-state.mjs"
 
 export const handler = async (event) => {
   if (event.httpMethod === "OPTIONS") return response(204, {})
@@ -13,6 +14,18 @@ export const handler = async (event) => {
     const body = JSON.parse(rawBody)
     if (!body.prompt || body.prompt.length < 40 || body.prompt.length > 8000) return response(400, { error: "改造提示词长度无效" })
     if (!String(body.image || "").startsWith("data:image/")) return response(400, { error: "请上传有效的空间图片" })
+
+    const quota = await consumeAiQuota(event, "image", {
+      clientLimit: 2,
+      clientWindowMs: 60 * 60 * 1000,
+      globalLimit: 20,
+      globalWindowMs: 24 * 60 * 60 * 1000,
+    })
+    if (!quota.allowed) {
+      return response(429, {
+        error: quota.reason === "global" ? "今日公网效果图额度已用完，请明天再试" : "效果图生成较频繁，请一小时后再试",
+      })
+    }
 
     const authHeaders = headers(key)
     const balanceResponse = await fetch(`${API_BASE}/v1/skills/balance`, { headers: authHeaders })

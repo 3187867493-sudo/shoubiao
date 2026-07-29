@@ -7,6 +7,16 @@
   NODE_VERSION = "22"
 
 [[redirects]]
+  from = "/api/renovation/analyze"
+  to = "/.netlify/functions/renovation-analyze-background"
+  status = 200
+
+[[redirects]]
+  from = "/api/renovation/analysis-status"
+  to = "/.netlify/functions/renovation-analysis-status"
+  status = 200
+
+[[redirects]]
   from = "/api/renovation/generate"
   to = "/.netlify/functions/renovation-generate"
   status = 200

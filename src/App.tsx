@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ChangeEvent, type ReactNode } from "react"
 import {
-  createAgentResult,
+  createAgentResultFromAnalysis,
   personas,
   priorities,
   propertyDefinitions,
@@ -16,6 +16,7 @@ import {
   type RoomId,
   type WalkSceneId,
 } from "./agent"
+import type { AnalysisPayload } from "../server/analysis"
 
 type Tab = "studio" | "projects" | "properties" | "method"
 type IconName =
@@ -101,6 +102,38 @@ async function fileToCompressedDataUrl(file: File, maxSide = 1600, quality = 0.8
   context.fillRect(0, 0, canvas.width, canvas.height)
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
   return canvas.toDataURL("image/jpeg", quality)
+}
+
+type AnalysisTaskResponse = {
+  task_id?: string
+  status?: "pending" | "processing" | "complete" | "error"
+  result?: AnalysisPayload
+  error?: string
+}
+
+async function readJsonResponse(response: Response): Promise<AnalysisTaskResponse & Partial<AnalysisPayload>> {
+  const text = await response.text()
+  if (!text.trim()) return {}
+  try {
+    return JSON.parse(text) as AnalysisTaskResponse & Partial<AnalysisPayload>
+  } catch {
+    throw new Error(`AI 服务返回了无法识别的响应（HTTP ${response.status}）`)
+  }
+}
+
+async function waitForAnalysisTask(taskId: string) {
+  for (let attempt = 0; attempt < 240; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, attempt < 3 ? 1500 : 3000))
+    const response = await fetch(`/api/renovation/analysis-status?task_id=${encodeURIComponent(taskId)}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    })
+    const payload = await readJsonResponse(response)
+    if (!response.ok && response.status !== 202) throw new Error(payload.error || "无法查询 GPT-5.6 分析进度")
+    if (payload.status === "error") throw new Error(payload.error || "GPT-5.6 空间分析失败")
+    if (payload.status === "complete" && payload.result) return payload.result
+  }
+  throw new Error("本次分析等待时间较长，请稍后重新运行。")
 }
 
 function Icon({ name, size = 20 }: { name: IconName; size?: number }) {
@@ -195,7 +228,7 @@ function Hero() {
           <span>空间观察 07</span>
           <b>强中心不是一件家具，<br />而是一组彼此支持的关系。</b>
         </figcaption>
-        <div className="hero-score"><strong>11.8</strong><span>/ 15</span><small>活力结构潜力</small></div>
+        <div className="hero-score"><strong>15</strong><span>项</span><small>规范属性索引</small></div>
       </figure>
     </section>
   )
@@ -362,10 +395,10 @@ function BriefPanel({
 
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="run-button" disabled={running} onClick={onRun}>
-        <span><Icon name="spark" size={20} />{running ? "正在编排方案" : "运行栖构智能体"}</span>
+        <span><Icon name="spark" size={20} />{running ? "GPT-5.6 正在分析" : "运行 GPT-5.6 活力分析"}</span>
         <Icon name="arrow" size={20} />
       </button>
-      <p className="run-note"><span />本地可追踪编排 · 不自动执行采购或施工</p>
+      <p className="run-note"><span />服务端真实模型 · 不自动执行采购或施工</p>
     </aside>
   )
 }
@@ -415,7 +448,7 @@ function RunningAgent({ activeStep }: { activeStep: number }) {
           )
         })}
       </div>
-      <div className="privacy-strip"><Icon name="shield" size={17} /><p><b>最小必要处理</b><span>图片只用于当前诊断，不进入本地方案历史。</span></p></div>
+      <div className="privacy-strip"><Icon name="shield" size={17} /><p><b>真实模型 · 最小必要处理</b><span>图片经服务端临时发送给 GPT-5.6，只用于当前诊断，不进入本地方案历史。</span></p></div>
     </section>
   )
 }
@@ -424,7 +457,7 @@ function ScoreDial({ value, target }: { value: number; target: number }) {
   const percent = Math.round((value / 15) * 100)
   return (
     <div className="score-dial" style={{ "--score": `${percent * 3.6}deg` } as React.CSSProperties}>
-      <div><strong>{value.toFixed(1)}</strong><span>/15</span><small>当前活力</small></div>
+      <div><strong>{value.toFixed(1)}</strong><span>/15</span><small>活力结构评估</small></div>
       <p>目标 {target.toFixed(1)}</p>
     </div>
   )
@@ -433,7 +466,7 @@ function ScoreDial({ value, target }: { value: number; target: number }) {
 function PropertyPanel({ properties, selected, onSelect }: { properties: PropertyScore[]; selected: PropertyScore | null; onSelect: (item: PropertyScore | null) => void }) {
   return (
     <section className="result-section property-section">
-      <div className="result-section-head"><div><span>01</span><h3>15 项活力结构</h3></div><p>每项 0–1 分，总分 15。条形中的浅色部分是改造目标。</p></div>
+      <div className="result-section-head"><div><span>01</span><h3>15 项活力结构</h3></div><p>GPT-5.6 按固定理论逐项评估；每项 0–1 分，浅色部分是改造目标。</p></div>
       <div className="property-list">
         {properties.map((property) => (
           <button key={property.id} className={selected?.id === property.id ? "active" : ""} onClick={() => onSelect(selected?.id === property.id ? null : property)}>
@@ -514,10 +547,10 @@ function ResultView({ result, sourceImage, renderState, onGenerate, onReset, onE
     <article className="agent-result">
       <header className="result-hero">
         <div className="result-title">
-          <p className="eyebrow"><span>03</span> 方案已生成 · {result.traceId}</p>
+          <p className="eyebrow"><span>03</span> {result.analysis ? "GPT-5.6 分析完成" : "历史方案"} · {result.traceId}</p>
           <h2>{isWalk ? (result.input.location || "城市漫步发现") : persona.name}<br /><em>{isWalk ? walkScene.name : room.name}活力更新方案</em></h2>
           <p>{result.summary}</p>
-          <div className="result-tags"><span>{result.budgetRange}</span><span>{result.deliveryCycle}</span><span>{result.steps.length} 个工具步骤</span></div>
+          <div className="result-tags"><span>{result.budgetRange}</span><span>{result.deliveryCycle}</span><span>{result.analysis ? `${result.analysis.confidence}置信度 · ${result.analysis.mode === "multimodal" ? "图像分析" : "简报分析"}` : "规则生成"}</span>{result.analysis && <span>{result.analysis.knowledgeStatus === "retrieved" ? `百炼知识库 ${result.analysis.knowledgeBaseId} 已检索` : "15 属性规范语料 · 百炼待认证"}</span>}</div>
         </div>
         <ScoreDial value={result.baseline} target={result.target} />
       </header>
@@ -564,7 +597,7 @@ function ResultView({ result, sourceImage, renderState, onGenerate, onReset, onE
       </section>
 
       <details className="trace-details">
-        <summary><span><Icon name="layers" size={18} /><b>查看完整执行轨迹与证据</b></span><small>{result.steps.length} tools · 本地可追踪编排</small></summary>
+        <summary><span><Icon name="layers" size={18} /><b>查看完整执行轨迹与证据</b></span><small>{result.steps.length} tools · 服务端可追踪编排</small></summary>
         <div className="trace-details-body">
           <div className="trace-table">
             {result.steps.map((step, index) => <div key={step.id}><span><Icon name="check" size={13} /></span><b>{String(index + 1).padStart(2, "0")} · {step.name}</b><p>{step.summary}</p><small>{step.duration}</small><em>{step.evidence}</em></div>)}
@@ -715,17 +748,37 @@ export default function App() {
     setRunning(true)
     setActiveStep(0)
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    for (let index = 0; index < runSteps.length; index += 1) {
-      setActiveStep(index)
-      await new Promise((resolve) => window.setTimeout(resolve, reduceMotion ? 35 : index === 2 ? 420 : 230))
-    }
     const input: AgentInput = { mode, persona, room, walkScene, location: location.trim(), budget, priorities: selectedPriorities, mission: mission.trim(), hasImage: Boolean(imageUrl) }
-    const next = createAgentResult(input)
-    setRenderState({ status: "idle", progress: 0 })
-    setResult(next)
-    persistProject(next)
-    setRunning(false)
-    window.setTimeout(() => resultRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" }), 60)
+    let displayedStep = 0
+    const stepTimer = window.setInterval(() => {
+      displayedStep = Math.min(runSteps.length - 2, displayedStep + 1)
+      setActiveStep(displayedStep)
+    }, reduceMotion ? 500 : 1700)
+    try {
+      const taskId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+      const response = await fetch("/api/renovation/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId, input, image: imageUrl }),
+      })
+      const initial = await readJsonResponse(response)
+      if (!response.ok && response.status !== 202) throw new Error(initial.error || "GPT-5.6 分析任务提交失败")
+      const payload = initial.properties
+        ? initial as AnalysisPayload
+        : await waitForAnalysisTask(taskId)
+      if (!payload.properties) throw new Error("GPT-5.6 未返回完整空间分析")
+      setActiveStep(runSteps.length - 1)
+      const next = createAgentResultFromAnalysis(input, payload)
+      setRenderState({ status: "idle", progress: 0 })
+      setResult(next)
+      persistProject(next)
+      window.setTimeout(() => resultRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" }), 80)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "GPT-5.6 空间分析失败，请重试。")
+    } finally {
+      window.clearInterval(stepTimer)
+      setRunning(false)
+    }
   }
 
   const openProject = (project: AgentResult) => {

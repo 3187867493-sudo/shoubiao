@@ -1,0 +1,3 @@
+minimumReleaseAgeExclude:
+  - '@netlify/blobs@10.7.11'
+  - '@netlify/otel@6.0.5'

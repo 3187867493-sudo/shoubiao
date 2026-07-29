@@ -1,3 +1,5 @@
+import type { AnalysisPayload } from "../server/analysis"
+
 export type PersonaId = "solo" | "couple" | "family" | "senior" | "pet" | "shared"
 export type RoomId = "whole" | "living" | "bedroom" | "kitchen" | "study" | "child"
 export type ProjectMode = "home" | "walk"
@@ -63,6 +65,17 @@ export type AgentResult = {
   evidence: Array<{ name: string; type: string; usage: string }>
   decisionGate: string[]
   input: AgentInput
+  analysis?: {
+    provider: "yinhe-ai" | "local-rules"
+    model: string
+    mode: "multimodal" | "brief-only" | "deterministic"
+    confidence: "高" | "中" | "低"
+    basis: string
+    visibleElements: string[]
+    knowledgeBaseId: string
+    knowledgeStatus: "retrieved" | "configured-missing-key" | "retrieval-fallback" | "local"
+    knowledgeProvider: string
+  }
 }
 
 export const personas: Array<{
@@ -110,35 +123,35 @@ export const priorities: Array<{ id: PriorityId; name: string }> = [
 export const propertyDefinitions: Array<Omit<PropertyScore, "score" | "target" | "insight">> = [
   { id: "levels", index: 1, name: "尺度层级", english: "Levels of scale", group: "层级与中心" },
   { id: "centers", index: 2, name: "强中心", english: "Strong centers", group: "层级与中心" },
-  { id: "boundaries", index: 3, name: "边界", english: "Boundaries", group: "边界与连接" },
+  { id: "boundaries", index: 3, name: "厚边界", english: "Thick Boundaries", group: "边界与连接" },
   { id: "repetition", index: 4, name: "交替重复", english: "Alternating repetition", group: "节奏与变化" },
   { id: "positive", index: 5, name: "正空间", english: "Positive space", group: "层级与中心" },
   { id: "shape", index: 6, name: "良好形状", english: "Good shape", group: "层级与中心" },
   { id: "symmetry", index: 7, name: "局部对称", english: "Local symmetries", group: "节奏与变化" },
-  { id: "interlock", index: 8, name: "深度交织", english: "Deep interlock", group: "边界与连接" },
+  { id: "interlock", index: 8, name: "深度交织与模糊性", english: "Deep Interlock and Ambiguity", group: "边界与连接" },
   { id: "contrast", index: 9, name: "对比", english: "Contrast", group: "张力与平静" },
   { id: "gradients", index: 10, name: "渐变", english: "Gradients", group: "节奏与变化" },
   { id: "roughness", index: 11, name: "粗糙性", english: "Roughness", group: "张力与平静" },
-  { id: "echoes", index: 12, name: "回声", english: "Echoes", group: "节奏与变化" },
-  { id: "void", index: 13, name: "空", english: "The void", group: "张力与平静" },
+  { id: "echoes", index: 12, name: "共鸣", english: "Echoes", group: "节奏与变化" },
+  { id: "void", index: 13, name: "虚空", english: "The Void", group: "张力与平静" },
   { id: "calm", index: 14, name: "简洁与内在平静", english: "Simplicity and inner calm", group: "张力与平静" },
-  { id: "whole", index: 15, name: "非分离性", english: "Not-separateness", group: "边界与连接" },
+  { id: "whole", index: 15, name: "非分离性", english: "Not-Separateness", group: "边界与连接" },
 ]
 
 const insights: Record<string, string> = {
   levels: "家具、灯光和收纳需要形成由房间到身体尺度的连续层级。",
   centers: "空间需要一个清晰的主要活动中心，而不是多个彼此竞争的焦点。",
-  boundaries: "用地毯、灯光、矮柜或材质变化形成可感知但不过度封闭的边界。",
+  boundaries: "用地毯、灯光、矮柜、壁龛或可停留边缘形成有厚度、可使用的边界。",
   repetition: "重复的木色、圆角和灯光节奏可以让不同区域彼此呼应。",
   positive: "通道之外的剩余空间应成为可停留、可使用的完整空间。",
   shape: "减少难以利用的尖角和碎片区域，让家具与空间轮廓互相支持。",
   symmetry: "局部平衡比整屋镜像更自然，可用于床头、餐桌或阅读角。",
-  interlock: "让厨房、餐桌、客厅或阳台之间出现可交流、可借景的交织关系。",
+  interlock: "让厨房、餐桌、客厅或阳台之间彼此伸入、借景，共享有意义的连接区域。",
   contrast: "通过明暗、软硬和新旧对比建立重点，但避免视觉噪声。",
   gradients: "从入口到核心、从明亮到安静，应有连续而可理解的过渡。",
   roughness: "保留手作、天然纹理和真实使用痕迹，让空间能够继续生长。",
-  echoes: "在不同位置重复相似比例、色泽或轮廓，形成家中的记忆线索。",
-  void: "保留一处不被家具占满的安静空间，为活动变化留下余地。",
+  echoes: "在不同位置重复相似比例、色泽或轮廓，形成相互共鸣的记忆线索。",
+  void: "保留一处不被家具占满的安静虚空，让周围中心和活动关系更清楚。",
   calm: "减少不必要装饰，把视觉注意力留给真正重要的人与活动。",
   whole: "每件新增物都要同时支持使用者、房间和原有生活，而非孤立存在。",
 }
@@ -347,5 +360,87 @@ export function createAgentResult(input: AgentInput): AgentResult {
     ],
     decisionGate: isWalk ? ["属地与产权边界确认", "消防及无障碍复核", "使用者共评", "正式报价与维护责任"] : ["现场尺寸与结构复核", "家庭成员共同确认", "材料样品确认", "正式报价与施工合同"],
     input,
+  }
+}
+
+export function createAgentResultFromAnalysis(input: AgentInput, analysis: AnalysisPayload): AgentResult {
+  const base = createAgentResult(input)
+  const definitions = new Map(propertyDefinitions.map((property) => [property.id, property]))
+  const properties: PropertyScore[] = analysis.properties.map((property) => {
+    const definition = definitions.get(property.id)
+    if (!definition) throw new Error(`未知的活力结构属性：${property.id}`)
+    return {
+      ...definition,
+      score: property.score,
+      target: property.target,
+      insight: property.insight,
+    }
+  })
+  const baseline = Number(properties.reduce((sum, property) => sum + property.score, 0).toFixed(1))
+  const target = Number(properties.reduce((sum, property) => sum + property.target, 0).toFixed(1))
+  const actions: AgentAction[] = analysis.actions.map((action) => ({
+    title: action.title,
+    rationale: action.rationale,
+    property: action.propertyIds
+      .map((id) => definitions.get(id)?.name)
+      .filter(Boolean)
+      .join(" · "),
+    phase: action.phase,
+    impact: action.impact,
+    share: action.share,
+  }))
+  const knowledgeRetrieved = analysis.meta.knowledgeStatus === "retrieved"
+  const knowledgeEvidence = knowledgeRetrieved
+    ? {
+        name: `阿里云百炼知识库 · ${analysis.meta.knowledgeBaseId}`,
+        type: "实时 RAG 理论检索",
+        usage: "Living Structure 理论依据与属性释义",
+      }
+    : {
+        name: "Living Structure 15 属性规范语料",
+        type: "内置结构化理论语料",
+        usage: `百炼知识库 ${analysis.meta.knowledgeBaseId} 已登记；当前使用规范语料回退`,
+      }
+
+  const steps: AgentStep[] = [
+    { id: "route", name: "任务理解与路由", tool: "mission_router", summary: "已读取对象、场景、预算、优先需求和改造目标。", duration: "实时", evidence: `${input.priorities.length || 1} 项优先需求` },
+    { id: "persona", name: input.mode === "walk" ? "空间使用者建模" : "居住对象建模", tool: "resident_profile", summary: "已将使用者、日常活动与冲突转译为空间判断条件。", duration: "实时", evidence: input.mode === "walk" ? input.location || "城市漫步发现" : personas.find((item) => item.id === input.persona)?.name || "居住对象" },
+    { id: "vision", name: "空间现状诊断", tool: "gpt_5_6_vision", summary: input.hasImage ? "GPT-5.6 已读取授权空间图像并提取可见空间证据。" : "未上传实景图，GPT-5.6 仅依据简报生成低置信度前期判断。", duration: "模型调用", evidence: analysis.visibleElements.join(" / ") || "无图像 · 待现场核验" },
+    { id: "living", name: "15 属性活力评估", tool: knowledgeRetrieved ? "bailian_rag + gpt_5_6" : "living_structure_corpus + gpt_5_6", summary: `按固定 15 属性逐项评分，当前 ${baseline}/15，目标 ${target}/15。`, duration: "模型调用", evidence: knowledgeRetrieved ? `阿里云百炼 ${analysis.meta.knowledgeBaseId}` : "规范理论语料回退" },
+    { id: "safety", name: input.mode === "walk" ? "公共使用与治理检查" : "居住安全与冲突检查", tool: "risk_gate", summary: `模型识别 ${analysis.risks.length} 项需人工确认的实施风险。`, duration: "实时", evidence: analysis.risks.map((item) => item.risk).join(" / ") },
+    { id: "planner", name: "空间干预方案编排", tool: "gpt_5_6_planner", summary: "GPT-5.6 生成一套两阶段、四项相互支持的改造行动。", duration: "模型调用", evidence: actions.map((item) => item.property).join(" / ") },
+    { id: "budget", name: "预算与工期拆解", tool: "budget_estimator", summary: `按 ${base.budgetRange}、${base.deliveryCycle} 的概念阶段口径分配预算。`, duration: "本地校验", evidence: "非报价 / 采购前复核" },
+    { id: "delivery", name: "交付包生成", tool: "delivery_packager", summary: "已生成理论诊断、改造方案、预算、风险与图像生成入口。", duration: "实时", evidence: "结构化 AI 结果已通过服务端校验" },
+  ]
+
+  return {
+    ...base,
+    traceId: `qg-ai-${Date.now().toString(36).slice(-7)}`,
+    createdAt: new Date().toISOString(),
+    summary: analysis.summary,
+    baseline,
+    target,
+    properties,
+    steps,
+    actions,
+    budgetItems: actions.map((action) => ({ label: action.title, share: action.share, range: moneyRange(base.budgetRange, action.share) })),
+    risks: analysis.risks,
+    evidence: [
+      { name: `GPT-5.6 · ${analysis.meta.model}`, type: input.hasImage ? "真实多模态空间分析" : "需求简报分析", usage: analysis.analysisBasis },
+      knowledgeEvidence,
+      { name: input.hasImage ? "用户授权空间图像" : "使用者需求简报", type: input.hasImage ? "临时视觉证据" : "无图前期依据", usage: input.hasImage ? "仅用于本次 GPT-5.6 分析，不写入方案历史" : "上传实景图后可重新评估" },
+    ],
+    decisionGate: analysis.decisionGate,
+    analysis: {
+      provider: "yinhe-ai",
+      model: analysis.meta.model,
+      mode: analysis.meta.mode,
+      confidence: analysis.confidence,
+      basis: analysis.analysisBasis,
+      visibleElements: analysis.visibleElements,
+      knowledgeBaseId: analysis.meta.knowledgeBaseId,
+      knowledgeStatus: analysis.meta.knowledgeStatus,
+      knowledgeProvider: analysis.meta.knowledgeProvider,
+    },
   }
 }

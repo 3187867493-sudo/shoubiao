@@ -1,14 +1,16 @@
-import { defineConfig, type HtmlTagDescriptor, type Plugin } from 'vite'
+import { defineConfig, loadEnv, type HtmlTagDescriptor, type Plugin } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 import path from 'node:path'
 import os from 'node:os'
 import fs from 'node:fs'
+import { AnalysisServiceError, analyzeRenovation, DEFAULT_KNOWLEDGE_BASE_ID } from './server/analysis'
 
 import siteConfiguration from './.figma/make/site.json'
 
 // Vite config — https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
+  Object.assign(process.env, loadEnv(mode, process.cwd(), ''))
   // .figma/make/deploy-preview passes `--mode development` for cached-preview builds.
   const emitSourcemaps = mode === 'development'
 
@@ -25,7 +27,7 @@ export default defineConfig(({ mode }) => {
       figmaErrorOverlayReplay(),
       figmaReactRefreshBoundaryFallback(),
       figmaMakeKitPlugin({ storiesGlob: '/src/**/*.stories.{ts,tsx,js,jsx}' }),
-      renovationImageApi(),
+      renovationAiApi(),
     ],
     resolve: {
       alias: {
@@ -59,18 +61,19 @@ function resolveRenovationApiKey() {
   }
 }
 
-function renovationImageApi(): Plugin {
+function renovationAiApi(): Plugin {
   const apiBase = 'https://api.lk888.ai/api'
 
   return {
-    name: 'qigou-renovation-image-api',
+    name: 'qigou-renovation-ai-api',
     apply: 'serve',
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const requestUrl = new URL(req.url || '/', 'http://localhost')
+        const isAnalyze = requestUrl.pathname === '/api/renovation/analyze'
         const isGenerate = requestUrl.pathname === '/api/renovation/generate'
         const isStatus = requestUrl.pathname === '/api/renovation/status'
-        if (!isGenerate && !isStatus) return next()
+        if (!isAnalyze && !isGenerate && !isStatus) return next()
 
         const send = (status: number, payload: unknown) => {
           res.statusCode = status
@@ -81,7 +84,7 @@ function renovationImageApi(): Plugin {
 
         const apiKey = resolveRenovationApiKey()
         if (!apiKey) {
-          send(503, { error: '图像生成服务尚未配置 API_KEY' })
+          send(503, { error: 'GPT-5.6 与图像生成服务尚未配置 API_KEY' })
           return
         }
         const headers = { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' }
@@ -129,7 +132,22 @@ function renovationImageApi(): Plugin {
             }
             chunks.push(buffer)
           }
-          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { prompt?: string; image?: string; size?: string; quality?: string }
+          const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as { prompt?: string; image?: string; size?: string; quality?: string; input?: unknown }
+          if (isAnalyze) {
+            try {
+              const result = await analyzeRenovation(body, {
+                apiKey,
+                model: process.env.GPT_ANALYSIS_MODEL || 'gpt-5.6-terra',
+                bailianApiKey: process.env.BAILIAN_API_KEY || '',
+                knowledgeBaseId: process.env.BAILIAN_KNOWLEDGE_BASE_ID || DEFAULT_KNOWLEDGE_BASE_ID,
+              })
+              send(200, result)
+            } catch (error) {
+              if (error instanceof AnalysisServiceError) send(error.status, { error: error.message })
+              else send(500, { error: error instanceof Error ? error.message : 'GPT-5.6 分析服务发生未知错误' })
+            }
+            return
+          }
           if (!body.prompt || body.prompt.length < 40 || body.prompt.length > 8000) {
             send(400, { error: '改造提示词长度无效' })
             return
