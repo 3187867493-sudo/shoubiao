@@ -142,7 +142,7 @@ function Hero() {
       <div className="hero-facts"><div><strong>15</strong><span>活力结构属性</span></div><div><strong>3</strong><span>可比较更新方向</span></div><div><strong>3M VAS</strong><span>公众视觉注意热图</span></div></div>
     </div>
     <figure className="hero-visual glass-shell">
-      <div className="hero-image-core"><div className="hero-city-scene" role="img" aria-label="具有公共步道、树木和混凝土建筑界面的城市开放空间"><span className="city-sky" /><span className="city-path" /><span className="city-block left" /><span className="city-block right" /><span className="city-trees" /></div><div className="hero-scan-line" /></div>
+      <div className="hero-image-core"><img src="/urban-hero.svg" alt="具有公共步道、树木和混凝土建筑界面的城市开放空间" /><div className="hero-scan-line" /></div>
       <figcaption className="liquid-glass"><span><i />示例观察</span><b>中心并不来自一个地标，<br />而来自周围关系的共同支持。</b><div><small>强中心</small><small>厚边界</small><small>尺度层级</small></div></figcaption>
     </figure>
   </section>
