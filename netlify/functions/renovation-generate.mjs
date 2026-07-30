@@ -18,6 +18,8 @@ export const handler = async (event) => {
     const quota = await consumeAiQuota(event, "image", {
       clientLimit: 2,
       clientWindowMs: 60 * 60 * 1000,
+      networkLimit: 12,
+      networkWindowMs: 60 * 60 * 1000,
       globalLimit: 20,
       globalWindowMs: 24 * 60 * 60 * 1000,
     })

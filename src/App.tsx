@@ -79,7 +79,7 @@ ${actions}
 LIVING STRUCTURE INTENT: strengthen strong centers, boundaries, levels of scale, gradients, positive space, echoes, roughness, simplicity and not-separateness. The result should feel lived-in, calm, maintainable, locally grounded and buildable. Use warm natural materials, realistic contact shadows and physically plausible daylight. Avoid luxury staging, excessive decoration, glossy showroom surfaces, blue-purple AI lighting, text, labels, people, watermarks, dramatic lens effects, and structural fantasy. Produce a high-quality architectural visualization of the same place after renovation.`
 }
 
-async function fileToCompressedDataUrl(file: File, maxSide = 1600, quality = 0.88) {
+async function fileToCompressedDataUrl(file: File, maxSide = 1280, quality = 0.82) {
   const source = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("无法读取图片"))
@@ -111,14 +111,41 @@ type AnalysisTaskResponse = {
   error?: string
 }
 
+let sessionAiClientId = ""
+
+function getAiClientId() {
+  if (sessionAiClientId) return sessionAiClientId
+  try {
+    const saved = localStorage.getItem("qigou-ai-client-id")
+    if (saved && /^[a-zA-Z0-9-]{16,80}$/.test(saved)) {
+      sessionAiClientId = saved
+      return saved
+    }
+    sessionAiClientId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    localStorage.setItem("qigou-ai-client-id", sessionAiClientId)
+    return sessionAiClientId
+  } catch {
+    sessionAiClientId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+    return sessionAiClientId
+  }
+}
+
 async function readJsonResponse(response: Response): Promise<AnalysisTaskResponse & Partial<AnalysisPayload>> {
   const text = await response.text()
   if (!text.trim()) return {}
   try {
     return JSON.parse(text) as AnalysisTaskResponse & Partial<AnalysisPayload>
   } catch {
-    throw new Error(`AI 服务返回了无法识别的响应（HTTP ${response.status}）`)
+    return { error: `AI 服务网关返回了非 JSON 响应（HTTP ${response.status}）` }
   }
+}
+
+function submissionError(response: Response, payload: AnalysisTaskResponse) {
+  if (payload.error) return payload.error
+  if (response.status === 413) return "照片数据超过公网提交限制，请换一张较小的图片后重试。"
+  if (response.status === 429) return "当前设备或校园网络提交较频繁，请稍后再试。"
+  if ([502, 503, 504].includes(response.status)) return "AI 服务暂时繁忙，请等待一分钟后重试。"
+  return `GPT-5.6 分析任务提交失败（HTTP ${response.status}）`
 }
 
 async function waitForAnalysisTask(taskId: string) {
@@ -756,13 +783,18 @@ export default function App() {
     }, reduceMotion ? 500 : 1700)
     try {
       const taskId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const response = await fetch("/api/renovation/analyze", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ taskId, input, image: imageUrl }),
-      })
+      let response: Response
+      try {
+        response = await fetch("/api/renovation/analyze", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "X-Qigou-Client": getAiClientId() },
+          body: JSON.stringify({ taskId, input, image: imageUrl }),
+        })
+      } catch {
+        throw new Error("无法连接 AI 服务，请检查网络后重新提交。")
+      }
       const initial = await readJsonResponse(response)
-      if (!response.ok && response.status !== 202) throw new Error(initial.error || "GPT-5.6 分析任务提交失败")
+      if (!response.ok && response.status !== 202) throw new Error(submissionError(response, initial))
       const payload = initial.properties
         ? initial as AnalysisPayload
         : await waitForAnalysisTask(taskId)
@@ -836,7 +868,7 @@ export default function App() {
     try {
       const response = await fetch("/api/renovation/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Qigou-Client": getAiClientId() },
         body: JSON.stringify({ prompt: buildVisualizationPrompt(result), image: imageUrl, size: "1536x1024", quality: "medium" }),
       })
       const payload = await response.json()

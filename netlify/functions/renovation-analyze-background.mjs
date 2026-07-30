@@ -30,6 +30,7 @@ async function save(store, taskId, value) {
 export const handler = async (event) => {
   let store
   let taskId = ""
+  const startedAt = Date.now()
   try {
     store = getAnalysisStore(event)
     if (event.httpMethod !== "POST") return response(405, { error: "仅支持 POST 请求" })
@@ -48,15 +49,19 @@ export const handler = async (event) => {
     }
 
     const quota = await consumeAiQuota(event, "analysis", {
-      clientLimit: 3,
+      clientLimit: 4,
       clientWindowMs: 30 * 60 * 1000,
+      networkLimit: 30,
+      networkWindowMs: 30 * 60 * 1000,
       globalLimit: 40,
       globalWindowMs: 24 * 60 * 60 * 1000,
     })
     if (!quota.allowed) {
       const message = quota.reason === "global"
         ? "今日公网 AI 分析额度已用完，请明天再试"
-        : "分析请求较频繁，请 30 分钟后再试"
+        : quota.reason === "network"
+          ? "当前校园或机构网络提交较多，请稍后再试"
+          : "当前浏览器分析较频繁，请 30 分钟后再试"
       await save(store, taskId, { status: "error", error: message })
       return response(429, { task_id: taskId, error: message })
     }
@@ -68,6 +73,7 @@ export const handler = async (event) => {
     }
 
     await save(store, taskId, { status: "processing", startedAt: new Date().toISOString() })
+    console.info(JSON.stringify({ event: "analysis_started", task: taskId.slice(0, 8), hasImage: Boolean(body.image) }))
     const result = await analyzeRenovation(body, {
       apiKey: key,
       model: process.env.GPT_ANALYSIS_MODEL || "gpt-5.6-terra",
@@ -75,9 +81,11 @@ export const handler = async (event) => {
       knowledgeBaseId: process.env.BAILIAN_KNOWLEDGE_BASE_ID || DEFAULT_KNOWLEDGE_BASE_ID,
     })
     await save(store, taskId, { status: "complete", completedAt: new Date().toISOString(), result })
+    console.info(JSON.stringify({ event: "analysis_complete", task: taskId.slice(0, 8), durationMs: Date.now() - startedAt, model: result.meta.model }))
     return response(200, { task_id: taskId, status: "complete" })
   } catch (error) {
     const message = error instanceof Error ? error.message : "GPT-5.6 分析服务发生未知错误"
+    console.error(JSON.stringify({ event: "analysis_error", task: taskId.slice(0, 8), durationMs: Date.now() - startedAt, error: message }))
     if (store && taskPattern.test(taskId)) {
       try {
         await save(store, taskId, { status: "error", error: message })
