@@ -273,6 +273,31 @@ function SchemeExplorer({ schemes, selectedId, onSelect }: { schemes: UrbanSchem
 type RenderState = { status: "idle" | "submitting" | "processing" | "complete" | "error"; progress: number; taskId?: string; imageUrl?: string; error?: string }
 type AttentionPoint = { x: number; y: number }
 type AttentionRecord = { points: AttentionPoint[]; participants: number }
+type AttentionInsight = { focus: string; center: string; cohesion: number; principle: string; decision: string; actions: string[] }
+
+function buildAttentionInsight(points: AttentionPoint[], participants: number, concentration: number): AttentionInsight {
+  if (!points.length) return { focus: "尚未形成热区", center: "等待公众标记", cohesion: 0, principle: "需要至少一轮视线测试", decision: "请先完成本轮反馈，系统会把点击结果转译为方案判断。", actions: ["邀请参与者在图上选择 1 到 3 个最吸引视线的位置", "提交后观察热区是否形成清晰中心", "用结果校正方案中的入口、边界、停留点与标识"] }
+  const avgX = points.reduce((sum, point) => sum + point.x, 0) / points.length
+  const avgY = points.reduce((sum, point) => sum + point.y, 0) / points.length
+  const spread = points.reduce((sum, point) => sum + Math.hypot(point.x - avgX, point.y - avgY), 0) / points.length
+  const cohesion = Math.max(0, Math.min(100, Math.round(100 - spread * 2.2)))
+  const horizontal = avgX < 34 ? "左侧" : avgX > 66 ? "右侧" : "中部"
+  const vertical = avgY < 34 ? "上方" : avgY > 66 ? "下方" : "中段"
+  const focus = `${horizontal}${vertical}`
+  const center = concentration >= 45 ? "视觉中心清晰" : concentration >= 24 ? "视觉中心适中" : "注意力过于分散"
+  const principle = concentration >= 45 ? "强中心、正空间" : cohesion < 48 ? "尺度层级、交替重复" : avgY > 64 ? "厚边界、可达性" : "局部对称、共鸣"
+  const decision = concentration >= 45
+    ? `公众视线明显聚集在${focus}，方案已经形成可识别中心，但需要确认它是否对应真实入口、停留或服务节点。`
+    : concentration >= 24
+      ? `公众视线在${focus}形成中等热区，说明中心存在但边界和引导还不够稳定。`
+      : `公众注意力分散，当前图像缺少一个能被多数人共同识别的空间中心。`
+  const actions = concentration >= 45
+    ? ["保留当前主视觉中心，不再增加同等强度的装置", "把座椅、导视或树荫布置在热区周边，强化停留理由", "检查红区是否遮挡消防、通行或无障碍动线"]
+    : concentration >= 24
+      ? ["加强热区与入口、步道或公共活动之间的连续关系", "用铺装、照明或植栽边界把中心轮廓变厚", "减少与热区竞争的高饱和标识和孤立景观物"]
+      : ["重新组织主入口、停留节点和边界，让人一眼知道哪里值得去", "加入可被共同识别的强中心，例如树阵、廊架、坐凳围合或公共服务点", "把零散亮点合并为 1 到 2 个主次明确的视觉中心"]
+  return { focus, center, cohesion, principle, decision, actions }
+}
 
 function VisualAttentionMap({ imageUrl, storageKey, imageLabel, onNextImage, onAfterSubmit, children }: { imageUrl: string; storageKey: string; imageLabel?: string; onNextImage?: () => void; onAfterSubmit?: () => void; children?: ReactNode }) {
   const [record, setRecord] = useState<AttentionRecord>({ points: [], participants: 0 })
@@ -297,7 +322,17 @@ function VisualAttentionMap({ imageUrl, storageKey, imageLabel, onNextImage, onA
   record.points.forEach((point) => { const key = `${Math.floor(point.x / 20)}-${Math.floor(point.y / 20)}`; cells.set(key, (cells.get(key) || 0) + 1) })
   const peak = Math.max(0, ...cells.values())
   const concentration = record.points.length ? Math.round((peak / record.points.length) * 100) : 0
-  return <section className="vas-panel"><header><div><p className="eyebrow"><span>参考 3M VAS</span> 公众视觉注意反馈</p><h3>改造后，视线首先落在哪里？</h3><p>请参与者在图中选择最多 3 个最吸引视线的位置。不询问心情，只记录视觉注意。</p></div><div className="vas-metrics"><span><b>{record.participants}</b>参与者</span><span><b>{record.points.length}</b>关注点</span><span><b>{concentration}%</b>集中度</span></div></header>{(imageLabel || onNextImage) && <div className="vas-image-toolbar"><span>{imageLabel || "城市样本"}</span>{onNextImage && <button onClick={onNextImage}>换一张城市图片 <Icon name="refresh" size={14} /></button>}</div>}<div className="vas-workspace"><div className="heatmap-frame" onClick={addPoint} role="application" aria-label="点击改造后图片添加视觉关注点"><img src={imageUrl} alt="用于公众视觉注意反馈的改造后城市空间" /><div className="heat-layer">{allPoints.map((point, index) => <i key={`${point.x}-${point.y}-${index}`} className={index >= record.points.length ? "pending" : ""} style={{ left: `${point.x}%`, top: `${point.y}%` }} />)}</div>{current.map((point, index) => <span key={`marker-${index}`} className="attention-marker" style={{ left: `${point.x}%`, top: `${point.y}%` }}>{index + 1}</span>)}</div><aside><div className="heat-legend"><span>低关注</span><i /><span>高关注</span></div><p>蓝色表示较少注意，红色表示注意集中。热图用于比较方案是否形成清晰而适度的视觉中心。</p><div className="selection-count"><b>{current.length}</b><span>/ 3 本轮选择</span></div><button disabled={!current.length} onClick={submit}>提交本轮反馈 <Icon name="arrow" size={15} /></button>{record.points.length > 0 && <button className="text-action" onClick={reset}>清空本机演示数据</button>}{children}</aside></div><footer><Icon name="info" size={15} /><p>这是参考 3M VAS（Visual Attention Software）视觉注意逻辑的公众共评原型，并非调用 3M 专有预测算法。结果保存在当前浏览器。</p></footer></section>
+  const insight = buildAttentionInsight(record.points, record.participants, concentration)
+  const exportReport = () => {
+    const lines = ["栖构 Urban Aliveness｜公众视觉注意共评摘要", `城市样本：${imageLabel || storageKey}`, `参与轮次：${record.participants}`, `关注点数：${record.points.length}`, `集中度：${concentration}%`, `凝聚度：${insight.cohesion}%`, `主要热区：${insight.focus}`, `空间判断：${insight.center}`, `关联原则：${insight.principle}`, "", "结论：", insight.decision, "", "方案修正建议：", ...insight.actions.map((item) => `- ${item}`)]
+    const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `公众视觉共评-${storageKey}.txt`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+  return <section className="vas-panel"><header><div><p className="eyebrow"><span>参考 3M VAS</span> 公众视觉注意反馈</p><h3>改造后，视线首先落在哪里？</h3><p>请参与者在图中选择最多 3 个最吸引视线的位置。不询问心情，只记录视觉注意。</p></div><div className="vas-metrics"><span><b>{record.participants}</b>参与者</span><span><b>{record.points.length}</b>关注点</span><span><b>{concentration}%</b>集中度</span></div></header>{(imageLabel || onNextImage) && <div className="vas-image-toolbar"><span>{imageLabel || "城市样本"}</span>{onNextImage && <button onClick={onNextImage}>换一张城市图片 <Icon name="refresh" size={14} /></button>}</div>}<div className="vas-workspace"><div className="heatmap-frame" onClick={addPoint} role="application" aria-label="点击改造后图片添加视觉关注点"><img src={imageUrl} alt="用于公众视觉注意反馈的改造后城市空间" onError={(event) => { event.currentTarget.src = "/urban-hero.svg" }} /><div className="heat-layer">{allPoints.map((point, index) => <i key={`${point.x}-${point.y}-${index}`} className={index >= record.points.length ? "pending" : ""} style={{ left: `${point.x}%`, top: `${point.y}%` }} />)}</div>{current.map((point, index) => <span key={`marker-${index}`} className="attention-marker" style={{ left: `${point.x}%`, top: `${point.y}%` }}>{index + 1}</span>)}</div><aside><div className="heat-legend"><span>低关注</span><i /><span>高关注</span></div><p>蓝色表示较少注意，红色表示注意集中。热图用于比较方案是否形成清晰而适度的视觉中心。</p><div className="selection-count"><b>{current.length}</b><span>/ 3 本轮选择</span></div><button disabled={!current.length} onClick={submit}>提交本轮反馈 <Icon name="arrow" size={15} /></button>{record.points.length > 0 && <button className="text-action" onClick={reset}>清空本机演示数据</button>}{children}</aside></div><section className={`vas-insight ${record.points.length ? "ready" : ""}`}><header><p className="eyebrow"><span>Output</span> 共评结果如何进入设计决策</p><button disabled={!record.points.length} onClick={exportReport}><Icon name="download" size={15} />导出共评摘要</button></header><div className="insight-grid"><article><span>主要热区</span><strong>{insight.focus}</strong><p>{insight.decision}</p></article><article><span>活力结构关联</span><strong>{insight.principle}</strong><p>{insight.center} · 凝聚度 {insight.cohesion}%</p></article><article><span>落地用途</span><strong>进入方案修正清单</strong><p>这些结果会作为入口、边界、停留节点和导视系统调整的公众证据。</p></article></div><ol>{insight.actions.map((action) => <li key={action}>{action}</li>)}</ol></section><footer><Icon name="info" size={15} /><p>这是参考 3M VAS（Visual Attention Software）视觉注意逻辑的公众共评原型，并非调用 3M 专有预测算法。结果保存在当前浏览器，可导出为街道办或设计讨论会的共评摘要。</p></footer></section>
 }
 
 function VisualizationWorkspace({ result, scheme, sourceImage, state, onGenerate }: { result: AgentResult; scheme: UrbanScheme; sourceImage: string | null; state: RenderState; onGenerate: () => void }) {
@@ -331,10 +366,10 @@ function InteractivePropertiesPage() {
 }
 
 const vasCitySamples = [
-  { id: "urban-hero", label: "高密度建筑界面 · 默认城市样本", image: "/urban-hero.svg" },
   { id: "street-canyon", label: "城市街谷 · 商业街与高层边界", image: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=1400&q=82" },
   { id: "night-grid", label: "夜间城市 · 光线与街道节奏", image: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1400&q=82" },
   { id: "civic-form", label: "公共建筑 · 体量与视觉中心", image: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1400&q=82" },
+  { id: "urban-hero", label: "高密度建筑界面 · 默认城市样本", image: "/urban-hero.svg" },
 ]
 function VasPage() {
   const [sampleIndex, setSampleIndex] = useState(0)
