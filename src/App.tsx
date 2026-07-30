@@ -146,14 +146,28 @@ async function waitForAnalysisTask(taskId: string) {
 }
 
 function buildVisualizationPrompt(result: AgentResult, scheme: UrbanScheme) {
-  return `Edit the provided source photograph into one coherent, photorealistic urban public-space micro-renovation proposal.
+  return `Edit the provided source photograph into one coherent, photorealistic BEFORE/AFTER urban public-space transformation.
 
-PRESERVE the original camera angle, perspective, buildings, structural openings, street geometry, mature trees and recognizable identity of ${result.input.location}. Do not invent a different site.
+PRIMARY REQUIREMENT: the result must show obvious, visible design changes to the actual urban space. Do not merely expand the image, crop the image, adjust color, clean the pavement, add generic greenery, or make a subtle beautification pass.
+
+PRESERVE the original camera angle, perspective, main building masses, primary structural openings, street geometry, mature trees and recognizable identity of ${result.input.location}. Do not invent a different site. However, you may substantially redesign the public-space layer and building edges so the before/after difference is immediately legible.
 
 SELECTED SCHEME — ${scheme.title}: ${scheme.concept}
 ${scheme.actions.map((action, index) => `${index + 1}. ${action.title}: ${action.rationale}`).join("\n")}
 
-LIVING STRUCTURE FOCUS: ${scheme.properties}. Strengthen relationships between walking, staying, edges, centers, shade and existing daily life. Use locally plausible, maintainable materials and realistic daylight. Keep the intervention buildable and proportional to the existing site. Avoid luxury staging, empty monumental plazas, fantasy structures, excessive decoration, glossy showroom materials, text, labels, logos, crowds, watermarks and dramatic cinematic effects. The result must clearly be the same place after a careful urban intervention.`
+MAKE AT LEAST 6 CLEAR PHYSICAL INTERVENTIONS, chosen from the selected scheme:
+1. create a recognizable public center or gathering node;
+2. add shaded seating, benches, low walls, or social edges;
+3. redesign paving patterns, ground texture, curb edges, or crossing zones;
+4. add layered planting, trees, planters, rain gardens, or permeable landscape;
+5. add a canopy, arcade repair, pergola, light frame, or facade-edge intervention;
+6. improve wayfinding, lighting, railings, accessibility ramps, or service kiosks;
+7. clarify boundaries between walking, staying, planting, storefronts, roads and entrances;
+8. remove visual clutter and reorganize inactive leftover space into positive space.
+
+LIVING STRUCTURE FOCUS: ${scheme.properties}. Strengthen relationships between walking, staying, edges, centers, shade and existing daily life. Apply Christopher Alexander's 15 properties visibly, especially strong centers, thick boundaries, positive space, levels of scale, local symmetries, gradients and not-separateness.
+
+VISUAL RULES: produce a realistic renovated design proposal, not an architectural fantasy. Use locally plausible, maintainable materials and realistic daylight. Keep the main place recognizable, but make the urban intervention bold enough that a student can clearly compare BEFORE and AFTER in one glance. Avoid luxury staging, empty monumental plazas, fantasy megastructures, excessive decoration, glossy showroom materials, text, labels, logos, crowds, watermarks and dramatic cinematic effects.`
 }
 
 type PropertyCaseStudy = { name: string; address: string; author: string; image: string; text: string }
