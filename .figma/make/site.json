@@ -1,6 +1,6 @@
 {
-  "title": "栖构 Living Home",
-  "description": "基于 Living Structure 十五属性的 AI 空间改造智能体：从居住需求或城市漫步发现出发，完成诊断、方案、预算、效果图生成和前后复评。",
+  "title": "栖构 Urban Aliveness｜城市活力诊断",
+  "description": "基于 Christopher Alexander 十五属性的 AI 城市公共空间诊断工具：读取现场照片，比较三套微更新方向，生成效果图并通过视觉注意热图开展公众共评。",
   "language": "zh-CN",
   "robots": {
     "index": false
