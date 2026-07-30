@@ -112,12 +112,12 @@ export const walkScenes: Array<{ id: WalkSceneId; name: string; description: str
 ]
 
 export const priorities: Array<{ id: PriorityId; name: string }> = [
-  { id: "storage", name: "收纳秩序" },
-  { id: "light", name: "采光照明" },
-  { id: "safety", name: "安全友好" },
-  { id: "flexibility", name: "灵活变化" },
-  { id: "nature", name: "自然材料" },
-  { id: "social", name: "家人互动" },
+  { id: "storage", name: "设施与界面秩序" },
+  { id: "light", name: "遮阴与夜间照明" },
+  { id: "safety", name: "步行及无障碍安全" },
+  { id: "flexibility", name: "弹性公共使用" },
+  { id: "nature", name: "生态与地方材料" },
+  { id: "social", name: "公共交往与停留" },
 ]
 
 export const propertyDefinitions: Array<Omit<PropertyScore, "score" | "target" | "insight">> = [
@@ -444,3 +444,4 @@ export function createAgentResultFromAnalysis(input: AgentInput, analysis: Analy
     },
   }
 }
+

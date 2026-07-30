@@ -19,6 +19,7 @@ import {
 import type { AnalysisPayload } from "../server/analysis"
 
 type Tab = "studio" | "projects" | "properties" | "method"
+type PlanVariant = "catalyst" | "balanced" | "living"
 type IconName =
   | "home"
   | "projects"
@@ -55,31 +56,40 @@ const personaIcons: Record<PersonaId, IconName> = {
 
 const runSteps = [
   "任务理解与路由",
-  "居住对象建模",
-  "空间现状诊断",
+  "城市地点与使用者建模",
+  "实景照片视觉识别",
   "15 属性活力评估",
-  "居住安全检查",
-  "方案编排",
+  "公共空间风险检查",
+  "城市微更新编排",
   "预算与工期拆解",
   "交付包生成",
 ]
 
-const defaultMission = "希望客厅既能陪孩子游戏，也能让大人阅读和偶尔居家办公；收纳要充足，但不要把空间做得像样板间。"
+const defaultMission = "希望改善这里的步行、停留、遮阴与街道交流体验，保留场所原有文脉，避免把城市空间做成脱离日常生活的景观样板。"
 
-function buildVisualizationPrompt(result: AgentResult) {
-  const modeLabel = result.input.mode === "walk" ? "public-space micro-renovation" : "residential interior renovation"
+const planVariants: Array<{ id: PlanVariant; name: string; subtitle: string; factor: number; focus: string; fit: string }> = [
+  { id: "catalyst", name: "轻触媒介入", subtitle: "低成本、可逆、快速验证", factor: 0.45, focus: "优先使用座椅、遮阴、标识、微绿化和可移动设施，不改变永久结构", fit: "短期试点与社区共创" },
+  { id: "balanced", name: "公共生活平衡", subtitle: "兼顾体验、维护与场所文脉", factor: 0.72, focus: "完整落实主要行动，并平衡步行、停留、经营、无障碍和日常维护", fit: "街区常规微更新" },
+  { id: "living", name: "活力结构优先", subtitle: "系统强化十五项空间关系", factor: 1, focus: "在现场复核后系统加强尺度层级、中心、厚边界、正空间和非分离性", fit: "长期公共空间提升" },
+]
+
+function buildVisualizationPrompt(result: AgentResult, variant: PlanVariant) {
+  const modeLabel = "urban public-space micro-renovation"
+  const selectedVariant = planVariants.find((item) => item.id === variant) || planVariants[1]
   const actions = result.actions.map((action, index) => `${index + 1}. ${action.title}: ${action.rationale}`).join("\n")
   return `Edit the provided source photograph into one coherent, photorealistic ${modeLabel} proposal based strictly on the confirmed plan below.
 
-PRESERVE: the original camera angle, perspective, room or facade geometry, structural walls, columns, doors, windows, ceiling height, surrounding context, and recognizable identity of the place. Do not move openings or invent another building. Keep all unchanged pixels and materials visually consistent where the plan does not require intervention.
+PRESERVE: the original camera angle, perspective, street and facade geometry, buildings, columns, doors, windows, mature trees, surrounding context, local material character, and recognizable identity of the place. Do not move openings, erase heritage fabric, invent another city, or turn the scene into an interior. Keep all unchanged pixels and materials visually consistent where the plan does not require intervention.
 
 CONFIRMED RENOVATION PLAN:
 ${actions}
 
-LIVING STRUCTURE INTENT: strengthen strong centers, boundaries, levels of scale, gradients, positive space, echoes, roughness, simplicity and not-separateness. The result should feel lived-in, calm, maintainable, locally grounded and buildable. Use warm natural materials, realistic contact shadows and physically plausible daylight. Avoid luxury staging, excessive decoration, glossy showroom surfaces, blue-purple AI lighting, text, labels, people, watermarks, dramatic lens effects, and structural fantasy. Produce a high-quality architectural visualization of the same place after renovation.`
+SELECTED OPTION: ${selectedVariant.name}. ${selectedVariant.focus}. Intervention intensity: ${Math.round(selectedVariant.factor * 100)}%.
+
+LIVING STRUCTURE INTENT: strengthen strong centers, boundaries, levels of scale, gradients, positive space, echoes, roughness, simplicity and not-separateness. The result should support walking, staying, local commerce, social contact, climate comfort and long-term maintenance. Use locally appropriate materials, realistic contact shadows and physically plausible daylight. Avoid generic plaza design, luxury staging, excessive decoration, glossy surfaces, blue-purple AI lighting, text, labels, watermarks, dramatic lens effects, and structural fantasy. Produce a high-quality urban design visualization of the exact same place after micro-renovation.`
 }
 
-async function fileToCompressedDataUrl(file: File, maxSide = 1280, quality = 0.82) {
+async function fileToCompressedDataUrl(file: File, maxSide = 1280, quality = 0.78) {
   const source = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("无法读取图片"))
@@ -101,7 +111,9 @@ async function fileToCompressedDataUrl(file: File, maxSide = 1280, quality = 0.8
   context.fillStyle = "#f3f1e8"
   context.fillRect(0, 0, canvas.width, canvas.height)
   context.drawImage(image, 0, 0, canvas.width, canvas.height)
-  return canvas.toDataURL("image/jpeg", quality)
+  const result = canvas.toDataURL("image/jpeg", quality)
+  if (result.length > 2.8 * 1024 * 1024) return canvas.toDataURL("image/jpeg", 0.62)
+  return result
 }
 
 type AnalysisTaskResponse = {
@@ -145,13 +157,13 @@ function submissionError(response: Response, payload: AnalysisTaskResponse) {
   if (response.status === 413) return "照片数据超过公网提交限制，请换一张较小的图片后重试。"
   if (response.status === 429) return "当前设备或校园网络提交较频繁，请稍后再试。"
   if ([502, 503, 504].includes(response.status)) return "AI 服务暂时繁忙，请等待一分钟后重试。"
-  return `GPT-5.6 分析任务提交失败（HTTP ${response.status}）`
+  return `GPT-5.6 城市照片分析任务提交失败（HTTP ${response.status}）`
 }
 
 async function waitForAnalysisTask(taskId: string) {
   for (let attempt = 0; attempt < 240; attempt += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, attempt < 3 ? 1500 : 3000))
-    const response = await fetch(`/api/renovation/analysis-status?task_id=${encodeURIComponent(taskId)}`, {
+    const response = await fetch(`/api/city/analysis-status?task_id=${encodeURIComponent(taskId)}`, {
       headers: { Accept: "application/json" },
       cache: "no-store",
     })
@@ -215,7 +227,7 @@ function TopNav({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }) {
     <header className="topbar">
       <button className="brand" onClick={() => onChange("studio")} aria-label="返回栖构首页">
         <BrandMark />
-        <span><b>栖构</b><small>Living Home</small></span>
+        <span><b>栖构</b><small>Living City</small></span>
       </button>
       <nav className="desktop-nav" aria-label="主要导航">
         {items.map((item) => (
@@ -240,20 +252,20 @@ function Hero() {
   return (
     <section className="hero">
       <div className="hero-copy">
-        <p className="eyebrow"><span>01</span> 为生活中的人设计</p>
-        <h1>一个家，不该只适合<br /><em>一种标准答案。</em></h1>
-        <p className="hero-lead">从家中真实需求或一次城市漫步的发现出发，栖构智能体用 Living Structure 的 15 个属性完成诊断、提出一套改造方案，并在你确认后生成改造效果图。</p>
+        <p className="eyebrow"><span>01</span> 为真实的城市生活诊断</p>
+        <h1>看见一座城市<br /><em>正在发生的生命。</em></h1>
+        <p className="hero-lead">上传街道、广场、骑楼、社区角落或公共空间的真实照片，城市活力智能体将依据 Christopher Alexander 的十五项属性识别可见结构、计算活力表现，并提出可追溯的微更新方案。</p>
         <div className="hero-facts">
           <div><strong>15</strong><span>项活力结构诊断</span></div>
-          <div><strong>6</strong><span>类居住对象模型</span></div>
-          <div><strong>1</strong><span>次完整智能体编排</span></div>
+          <div><strong>5</strong><span>类城市空间场景</span></div>
+          <div><strong>AI</strong><span>真实照片视觉识别</span></div>
         </div>
       </div>
       <figure className="hero-visual">
-        <img src="https://images.unsplash.com/photo-1600210492486-724fe5c67fb0?auto=format&fit=crop&w=1400&q=86" alt="有自然材料、阅读角和家庭活动中心的温暖客厅" />
+        <img src="https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1400&q=86" alt="具有步行、停留和沿街活动的城市公共空间" />
         <figcaption>
           <span>空间观察 07</span>
-          <b>强中心不是一件家具，<br />而是一组彼此支持的关系。</b>
+          <b>城市中心不是一个地标，<br />而是一组彼此支持的公共生活。</b>
         </figcaption>
         <div className="hero-score"><strong>15</strong><span>项</span><small>规范属性索引</small></div>
       </figure>
@@ -324,50 +336,25 @@ function BriefPanel({
   error: string
 }) {
   return (
-    <aside className="brief-panel" aria-label="装修任务设置">
+    <aside className="brief-panel" aria-label="城市活力诊断设置">
       <div className="brief-intro">
-        <p className="eyebrow"><span>02</span> 建立居住简报</p>
-        <h2>先告诉我，<br />谁会住在这里。</h2>
-        <p>对象不是标签，而是影响尺度、边界、动线和安全的设计条件。</p>
+        <p className="eyebrow"><span>02</span> 建立城市观察简报</p>
+        <h2>从一张真实照片，<br />看见场所关系。</h2>
+        <p>地点、活动和可见证据共同决定尺度、中心、边界、动线与公共性。</p>
       </div>
 
-      <div className="mode-switch" aria-label="选择项目来源">
-        <button className={mode === "home" ? "selected" : ""} onClick={() => setMode("home")}><Icon name="home" size={18} /><span><b>居家改造</b><small>从居住对象出发</small></span></button>
-        <button className={mode === "walk" ? "selected" : ""} onClick={() => setMode("walk")}><Icon name="eye" size={18} /><span><b>城市漫步发现</b><small>把观察变成微更新</small></span></button>
-      </div>
-
-      {mode === "home" ? <>
+      <>
         <section className="form-section">
-          <SectionLabel index="A" title="居住对象" hint="选择最接近当前家庭的情况" />
-          <div className="persona-grid">
-            {personas.map((item) => (
-              <button key={item.id} className={`persona-option ${persona === item.id ? "selected" : ""}`} onClick={() => setPersona(item.id)} style={{ "--persona": item.accent } as React.CSSProperties}>
-                <span className="persona-icon"><Icon name={personaIcons[item.id]} size={22} /></span>
-                <span><b>{item.name}</b><small>{item.english}</small></span>
-                {persona === item.id && <i><Icon name="check" size={13} /></i>}
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <section className="form-section">
-          <SectionLabel index="B" title="空间范围" />
-          <div className="room-options">
-            {rooms.map((item) => <button key={item.id} className={room === item.id ? "selected" : ""} onClick={() => setRoom(item.id)}><b>{item.name}</b><small>{item.description}</small></button>)}
-          </div>
-        </section>
-      </> : <>
-        <section className="form-section">
-          <SectionLabel index="A" title="漫步发现地点" hint="不必局限于永庆坊" />
-          <input className="location-input" value={location} onChange={(event) => setLocation(event.target.value)} maxLength={80} placeholder="例如：永庆坊 · 恩宁路骑楼段" />
+          <SectionLabel index="A" title="城市观察地点" hint="填写城市、街区和具体路段" />
+          <input className="location-input" value={location} onChange={(event) => setLocation(event.target.value)} maxLength={80} placeholder="例如：广州 · 恩宁路骑楼段" />
         </section>
         <section className="form-section">
-          <SectionLabel index="B" title="改造对象" hint="选择这次希望介入的空间" />
+          <SectionLabel index="B" title="城市空间类型" hint="帮助AI理解照片中的公共空间关系" />
           <div className="room-options walk-options">
             {walkScenes.map((item) => <button key={item.id} className={walkScene === item.id ? "selected" : ""} onClick={() => setWalkScene(item.id)}><b>{item.name}</b><small>{item.description}</small></button>)}
           </div>
         </section>
-      </>}
+      </>
 
       <section className="form-section">
         <SectionLabel index="C" title="优先解决" hint="最多选择 4 项" />
@@ -390,39 +377,39 @@ function BriefPanel({
       </section>
 
       <section className="form-section">
-        <SectionLabel index="E" title="你的生活任务" hint="比“现代简约”更具体一些" />
-        <textarea value={mission} onChange={(event) => setMission(event.target.value)} maxLength={600} aria-label="描述装修需求" />
-        <div className="char-count"><span>描述日常动作、矛盾和期待</span><span>{mission.length}/600</span></div>
+        <SectionLabel index="E" title="城市观察与目标" hint="描述谁在使用、哪里冲突、希望改善什么" />
+        <textarea value={mission} onChange={(event) => setMission(event.target.value)} maxLength={600} aria-label="描述城市空间问题" />
+        <div className="char-count"><span>描述步行、停留、经营、交往和维护</span><span>{mission.length}/600</span></div>
       </section>
 
       <section className="form-section">
-        <SectionLabel index="F" title="空间照片" hint="可选；有实景图会让诊断更准确" />
+        <SectionLabel index="F" title="城市实景照片" hint="必需；AI将以照片中的可见证据进行诊断" />
         {imageUrl ? (
           <div className="image-preview">
-            <img src={imageUrl} alt="用户上传的待改造空间" />
-            <div><b>{imageName}</b><span>仅用于本次浏览器会话</span></div>
+            <img src={imageUrl} alt="用户上传的城市实景照片" />
+            <div><b>{imageName}</b><span>图片已压缩并通过浏览器读取 · 等待AI识别</span></div>
             <button onClick={clearImage} aria-label="移除上传图片"><Icon name="close" size={17} /></button>
           </div>
         ) : (
           <label className="upload-box">
             <input type="file" accept="image/png,image/jpeg,image/webp" onChange={onImage} />
             <span><Icon name="camera" size={23} /></span>
-            <b>上传当前空间</b>
-            <small>JPG、PNG 或 WebP · 建议正对空间拍摄</small>
+            <b>上传城市真实照片</b>
+            <small>JPG、PNG 或 WebP · 支持街道、广场、建筑立面与社区空间</small>
           </label>
         )}
         {imageUrl && (
           <label className={`consent ${imageAuthorized ? "checked" : ""}`}>
             <input type="checkbox" checked={imageAuthorized} onChange={(event) => setImageAuthorized(event.target.checked)} />
             <span><Icon name={imageAuthorized ? "check" : "shield"} size={14} /></span>
-            <p>我确认拥有该图片的使用权，并同意用于本次空间诊断。原图不会写入方案历史。</p>
+            <p>我确认拥有该图片的使用权，并同意用于本次城市活力诊断。原图不会写入方案历史。</p>
           </label>
         )}
       </section>
 
       {error && <p className="form-error" role="alert">{error}</p>}
       <button className="run-button" disabled={running} onClick={onRun}>
-        <span><Icon name="spark" size={20} />{running ? "GPT-5.6 正在分析" : "运行 GPT-5.6 活力分析"}</span>
+        <span><Icon name="spark" size={20} />{running ? "GPT-5.6 正在识别城市照片" : "识别照片并运行城市活力分析"}</span>
         <Icon name="arrow" size={20} />
       </button>
       <p className="run-note"><span />服务端真实模型 · 不自动执行采购或施工</p>
@@ -443,7 +430,7 @@ function EmptyAgent({ mode, persona, walkScene, location }: { mode: ProjectMode;
       </div>
       <p className="eyebrow"><span>03</span> Aliveness home agent</p>
       <h2>准备理解<br /><em>{objectName}</em>。</h2>
-      <p>智能体不会直接套用某种装修风格，而是依次完成对象建模、空间诊断、Living Structure 检索、方案规划、预算拆解和风险门控。</p>
+      <p>智能体不会套用通用城市美化模板，而是依次完成城市图像识别、使用关系建模、Living Structure 检索、十五项诊断、多方案规划和风险门控。</p>
       <div className="empty-route">
         <div><span>01</span><b>理解生活</b><small>谁住在这里，如何使用</small></div>
         <div><span>02</span><b>诊断关系</b><small>15 项空间活力属性</small></div>
@@ -515,6 +502,27 @@ function PropertyPanel({ properties, selected, onSelect }: { properties: Propert
   )
 }
 
+function RecommendationPlans({ result, selected, onSelect }: { result: AgentResult; selected: PlanVariant; onSelect: (value: PlanVariant) => void }) {
+  return (
+    <section className="result-section recommendation-section">
+      <div className="result-section-head"><div><span>02</span><h3>三个推荐方向</h3></div><p>基于同一张真实照片和十五项诊断，按投入强度生成可比较的城市微更新方案。</p></div>
+      <div className="recommendation-grid">
+        {planVariants.map((plan, index) => {
+          const target = Math.min(15, result.baseline + (result.target - result.baseline) * plan.factor)
+          const budget = index === 0 ? "约为基准预算的 35–50%" : index === 1 ? result.budgetRange : "约为基准预算的 130–170%"
+          return <button key={plan.id} className={selected === plan.id ? "selected" : ""} onClick={() => onSelect(plan.id)}>
+            <header><span>方案 {String.fromCharCode(65 + index)}</span>{index === 1 && <em>推荐</em>}</header>
+            <h4>{plan.name}</h4><small>{plan.subtitle}</small>
+            <div className="option-score"><span><b>{target.toFixed(1)}</b>/15</span><i><b style={{ width: `${target / 15 * 100}%` }} /></i></div>
+            <p>{plan.focus}</p><footer><span>{budget}</span><span>{plan.fit}</span></footer>
+          </button>
+        })}
+      </div>
+      <p className="recommendation-note">选择方案后，后续行动摘要与效果图生成会采用该强度；所有方案都需经过产权、消防、结构、管线和现场尺寸复核。</p>
+    </section>
+  )
+}
+
 type RenderState = {
   status: "idle" | "submitting" | "processing" | "complete" | "error"
   progress: number
@@ -523,13 +531,13 @@ type RenderState = {
   error?: string
 }
 
-function VisualizationWorkspace({ result, sourceImage, state, onGenerate }: { result: AgentResult; sourceImage: string | null; state: RenderState; onGenerate: () => void }) {
+function VisualizationWorkspace({ result, sourceImage, state, onGenerate, selectedPlan }: { result: AgentResult; sourceImage: string | null; state: RenderState; onGenerate: () => void; selectedPlan: PlanVariant }) {
   const [confirmed, setConfirmed] = useState(false)
   const [compare, setCompare] = useState(54)
   const isBusy = state.status === "submitting" || state.status === "processing"
   return (
     <section className="result-section visualize-section">
-      <div className="result-section-head"><div><span>05</span><h3>AI 改造效果图</h3></div><p>确认上方这一套方案后，AI 会在原图上完成空间改造，不另起一套风格方案。</p></div>
+      <div className="result-section-head"><div><span>06</span><h3>AI 城市更新效果图</h3></div><p>当前选择：{planVariants.find((item) => item.id === selectedPlan)?.name}。AI会在原照片上保留场所身份并完成对应强度的微更新。</p></div>
       {!sourceImage ? (
         <div className="visual-empty"><span><Icon name="camera" size={24} /></span><div><h4>需要一张现状照片</h4><p>返回左侧上传空间实景图，再重新运行诊断；效果图会保留原有视角和主要结构。</p></div></div>
       ) : state.status === "complete" && state.imageUrl ? (
@@ -564,7 +572,44 @@ function VisualizationWorkspace({ result, sourceImage, state, onGenerate }: { re
   )
 }
 
-function ResultView({ result, sourceImage, renderState, onGenerate, onReset, onExport }: { result: AgentResult; sourceImage: string | null; renderState: RenderState; onGenerate: () => void; onReset: () => void; onExport: () => void }) {
+type AttentionPoint = { x: number; y: number }
+
+function VisualAttentionFeedback({ image }: { image: string | null }) {
+  const [points, setPoints] = useState<AttentionPoint[]>([
+    { x: 31, y: 58 }, { x: 34, y: 56 }, { x: 33, y: 60 },
+    { x: 67, y: 39 }, { x: 69, y: 41 }, { x: 52, y: 72 },
+  ])
+  const [showHeatmap, setShowHeatmap] = useState(true)
+  const addPoint = (event: React.MouseEvent<HTMLButtonElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    setPoints((current) => [...current, { x: ((event.clientX - rect.left) / rect.width) * 100, y: ((event.clientY - rect.top) / rect.height) * 100 }].slice(-80))
+  }
+  const intensityAt = (point: AttentionPoint) => points.filter((other) => Math.hypot(other.x - point.x, other.y - point.y) < 9).length
+  return (
+    <section className="result-section attention-section">
+      <div className="result-section-head"><div><span>07</span><h3>视觉客返 · VAS注意力热图</h3></div><p>邀请使用者点击第一眼最吸引视线的位置，不询问心情；点击聚合后，关注最少处为蓝色、最集中处为红色。</p></div>
+      <div className="attention-layout">
+        <button className="attention-canvas" onClick={addPoint} disabled={!image} aria-label="点击图片中最吸引视线的位置">
+          {image ? <img src={image} alt="用于视觉注意力客返的城市更新方案" /> : <div className="attention-empty"><Icon name="eye" size={28}/><b>生成方案效果图后开始视觉客返</b></div>}
+          {image && showHeatmap && <div className="heat-layer">{points.map((point, index) => <i key={`${point.x}-${point.y}-${index}`} className={intensityAt(point) >= 3 ? "heat-hot" : intensityAt(point) === 2 ? "heat-warm" : "heat-cool"} style={{ left: `${point.x}%`, top: `${point.y}%` }} />)}</div>}
+          {image && <span className="attention-hint"><Icon name="eye" size={14}/> 点击最先吸引你视线的位置</span>}
+        </button>
+        <aside className="attention-panel">
+          <p className="eyebrow"><span>3M VAS inspired</span> 群体注意力客返</p>
+          <h4>哪里真正<br/>抓住了视线？</h4>
+          <p>当前已记录 <b>{points.length}</b> 次注意力点击。重叠点击会逐步由蓝、绿、黄过渡为红色。</p>
+          <div className="heat-legend"><i/><span>低关注</span><b/><span>高关注</span></div>
+          <div className="attention-stats"><span><small>最高聚合</small><b>{Math.max(0, ...points.map(intensityAt))}次</b></span><span><small>反馈状态</small><b>{points.length >= 10 ? "可比较" : "收集中"}</b></span></div>
+          <button onClick={() => setShowHeatmap(!showHeatmap)}><Icon name="eye" size={15}/>{showHeatmap ? "隐藏热图看原图" : "显示注意力热图"}</button>
+          <button className="text-button" onClick={() => setPoints([])}>清空本轮客返</button>
+          <small>说明：这是基于用户点击的视觉注意力反馈，不等同于医学眼动检测，也不是温度热成像。</small>
+        </aside>
+      </div>
+    </section>
+  )
+}
+
+function ResultView({ result, sourceImage, renderState, onGenerate, onReset, onExport, selectedPlan, onSelectPlan }: { result: AgentResult; sourceImage: string | null; renderState: RenderState; onGenerate: () => void; onReset: () => void; onExport: () => void; selectedPlan: PlanVariant; onSelectPlan: (value: PlanVariant) => void }) {
   const [selectedProperty, setSelectedProperty] = useState<PropertyScore | null>(null)
   const persona = personas.find((item) => item.id === result.input.persona) ?? personas[0]
   const room = rooms.find((item) => item.id === result.input.room) ?? rooms[0]
@@ -582,10 +627,18 @@ function ResultView({ result, sourceImage, renderState, onGenerate, onReset, onE
         <ScoreDial value={result.baseline} target={result.target} />
       </header>
 
+      {result.analysis && <section className="vision-evidence">
+        <div><Icon name="eye" size={19} /><span><b>照片已被AI实际读取</b><small>{result.analysis.model} · 高细节视觉识别 · {result.analysis.confidence}置信度</small></span></div>
+        <p>{result.analysis.basis}</p>
+        <div className="visible-elements">{result.analysis.visibleElements.map((item) => <span key={item}>{item}</span>)}</div>
+      </section>}
+
       <PropertyPanel properties={result.properties} selected={selectedProperty} onSelect={setSelectedProperty} />
 
+      <RecommendationPlans result={result} selected={selectedPlan} onSelect={onSelectPlan} />
+
       <section className="result-section actions-section">
-        <div className="result-section-head"><div><span>02</span><h3>分阶段空间干预</h3></div><p>先修复关键空间关系，再决定风格与物件。</p></div>
+        <div className="result-section-head"><div><span>03</span><h3>分阶段城市干预</h3></div><p>以下行动会按照所选推荐方案的投入强度实施。</p></div>
         <div className="action-list">
           {result.actions.map((action, index) => (
             <article key={action.title}>
@@ -616,7 +669,9 @@ function ResultView({ result, sourceImage, renderState, onGenerate, onReset, onE
         </section>
       </div>
 
-      <VisualizationWorkspace result={result} sourceImage={sourceImage} state={renderState} onGenerate={onGenerate} />
+      <VisualizationWorkspace result={result} sourceImage={sourceImage} state={renderState} onGenerate={onGenerate} selectedPlan={selectedPlan} />
+
+      <VisualAttentionFeedback image={renderState.status === "complete" ? renderState.imageUrl || null : sourceImage} />
 
       <section className="handoff-section">
         <div className="handoff-image"><img src="https://images.unsplash.com/photo-1600566753086-00f18fb6b3ea?auto=format&fit=crop&w=1200&q=84" alt="自然材料与柔和照明构成的空间参考" /><span>材料方向参考 · 非生成结果</span></div>
@@ -645,7 +700,7 @@ function ResultView({ result, sourceImage, renderState, onGenerate, onReset, onE
 function ProjectsPage({ projects, onOpen, onClear }: { projects: AgentResult[]; onOpen: (project: AgentResult) => void; onClear: () => void }) {
   return (
     <main className="page-shell subpage">
-      <header className="subpage-head"><div><p className="eyebrow"><span>Archive</span> 本地方案记录</p><h1>每一次居住判断，<br /><em>都可以被重新查看。</em></h1></div>{projects.length > 0 && <button className="text-button" onClick={onClear}>清空本地记录</button>}</header>
+      <header className="subpage-head"><div><p className="eyebrow"><span>Archive</span> 城市诊断记录</p><h1>每一次城市观察，<br /><em>都可以被重新查看。</em></h1></div>{projects.length > 0 && <button className="text-button" onClick={onClear}>清空本地记录</button>}</header>
       {projects.length === 0 ? (
         <section className="projects-empty"><BrandMark /><h2>还没有生成方案</h2><p>完成一次智能体任务后，脱敏结果会保存在这个浏览器中；上传的原图不会进入历史。</p></section>
       ) : (
@@ -665,11 +720,28 @@ function ProjectsPage({ projects, onOpen, onClear }: { projects: AgentResult[]; 
 
 function PropertiesPage() {
   const groups = ["层级与中心", "边界与连接", "节奏与变化", "张力与平静"] as const
+  const cityDescriptions: Record<string, string> = {
+    levels: "从片区、街道、公共节点、建筑界面到铺装细节形成连续尺度。",
+    centers: "公共生活由彼此支持的中心组成，并具有清晰而开放的主次。",
+    boundaries: "骑楼、檐下、台阶和可坐边缘让边界具有公共厚度。",
+    repetition: "柱列、树阵、开口和铺装以相似与差异形成城市节奏。",
+    positive: "街道、广场和角落拥有完整可使用的形状，而非交通剩余地。",
+    shape: "路径、入口和停留节点形状清楚，并支持真实城市活动。",
+    symmetry: "在入口、树阵或停留点建立自然平衡，不追求僵硬轴线。",
+    interlock: "建筑、街道与公共活动相互伸入，让连接处成为场所。",
+    contrast: "新旧、明暗、开合差异帮助识别中心，同时服从整体。",
+    gradients: "从快速通行到慢行停留、从开放到庇护形成连续变化。",
+    roughness: "允许材料、时间、手作和地方使用留下适应性差异。",
+    echoes: "地方比例、轮廓和材料在街道与建筑之间反复呼应。",
+    void: "保留安静、未被设施占满的公共中心，让周围关系清晰。",
+    calm: "减少无意义视觉竞争，让城市空间自然、直接而安定。",
+    whole: "建筑、街道、行人、经营、自然和文脉不再彼此孤立。",
+  }
   return (
     <main className="page-shell subpage properties-page">
-      <header className="subpage-head"><div><p className="eyebrow"><span>15 Properties</span> Christopher Alexander</p><h1>判断一个空间，<br /><em>是否真正有生命。</em></h1><p>15 个属性不是装修风格清单，而是观察空间整体关系的语言。栖构将它们转译为普通家庭可以理解和行动的建议。</p></div><div className="fifteen-stamp"><strong>15</strong><span>每项 0–1 分<br />总分 15</span></div></header>
+      <header className="subpage-head"><div><p className="eyebrow"><span>15 Properties</span> Christopher Alexander</p><h1>判断城市空间，<br /><em>是否真正有生命。</em></h1><p>15 个属性不是风格或城市美化清单，而是观察建筑、街道、公共生活和场所整体关系的语言。</p></div><div className="fifteen-stamp"><strong>15</strong><span>每项 0–1 分<br />总分 15</span></div></header>
       <div className="property-groups">
-        {groups.map((group, groupIndex) => <section key={group}><header><span>0{groupIndex + 1}</span><h2>{group}</h2></header><div>{propertyDefinitions.filter((item) => item.group === group).map((item) => <article key={item.id}><span>{String(item.index).padStart(2, "0")}</span><h3>{item.name}</h3><small>{item.english}</small><p>{({ levels: "从房间到家具再到触手可及的细节，形成连续尺度。", centers: "一个空间由彼此支持的中心组成，并有清晰的主次。", boundaries: "好的边界会强化内部，而不是简单地把空间隔断。", repetition: "相似与差异交替出现，形成可以感受到的节奏。", positive: "空间本身拥有完整形状，而不是家具摆完后留下的缝隙。", shape: "形状清楚、紧凑，并能支持正在发生的活动。", symmetry: "在局部建立自然平衡，不追求僵硬的整体镜像。", interlock: "两个区域相互伸入，让连接处成为真正的空间。", contrast: "差异帮助人识别重点，同时服从于整体秩序。", gradients: "大小、光线、私密度和活动强度连续变化。", roughness: "允许适应、手作和真实生活留下不完全一致的痕迹。", echoes: "相似比例、色泽和轮廓在不同位置重新出现。", void: "一个安静、未被占满的中心，让周围关系更清晰。", calm: "减少多余表达，让空间显得自然、直接而安定。", whole: "空间、物件、使用者与环境不再彼此孤立。" } as Record<string, string>)[item.id]}</p></article>)}</div></section>)}
+        {groups.map((group, groupIndex) => <section key={group}><header><span>0{groupIndex + 1}</span><h2>{group}</h2></header><div>{propertyDefinitions.filter((item) => item.group === group).map((item) => <article key={item.id}><span>{String(item.index).padStart(2, "0")}</span><h3>{item.name}</h3><small>{item.english}</small><p>{cityDescriptions[item.id]}</p></article>)}</div></section>)}
       </div>
     </main>
   )
@@ -678,13 +750,13 @@ function PropertiesPage() {
 function MethodPage() {
   return (
     <main className="page-shell subpage method-page">
-      <header className="subpage-head"><div><p className="eyebrow"><span>Method</span> 可解释的居家设计智能体</p><h1>AI 负责组织复杂度，<br /><em>人保留最后的决定。</em></h1></div></header>
+      <header className="subpage-head"><div><p className="eyebrow"><span>Method</span> 可解释的城市活力智能体</p><h1>AI 负责组织复杂度，<br /><em>城市中的人保留决定。</em></h1></div></header>
       <section className="method-flow">
         {[
-          ["01", "理解居住对象", "先读取家庭结构、作息、身体条件与真实矛盾，不从流行风格开始。"],
+          ["01", "读取真实城市照片", "先识别建筑、街道、边界、活动和可见矛盾，不从通用城市风格开始。"],
           ["02", "诊断空间关系", "以 15 个 Living Structure 属性评估中心、边界、尺度、渐变与整体性。"],
           ["03", "调用专业工具", "将方案拆成安全检查、空间规划、材料原则、预算估算和风险门控。"],
-          ["04", "交还人的判断", "采购、拆改、施工和正式报价必须经过家庭与专业人员确认。"],
+          ["04", "交还公共判断", "产权、消防、结构、采购、施工和维护责任必须经过使用者、属地与专业人员确认。"],
         ].map(([index, title, body]) => <article key={index}><span>{index}</span><h2>{title}</h2><p>{body}</p></article>)}
       </section>
       <section className="transparency-panel"><div><p className="eyebrow"><span>Principle</span> 智能体边界</p><h2>它能提出有依据的方向，<br />但不会假装看见照片之外的事实。</h2></div><ul><li><Icon name="check" size={15} />每次任务生成独立执行编号与工具轨迹</li><li><Icon name="check" size={15} />无实景图时明确标记为房型基线回退</li><li><Icon name="check" size={15} />预算只给前期区间，不冒充供应商报价</li><li><Icon name="check" size={15} />上传图片不进入本地方案历史</li></ul></section>
@@ -694,13 +766,13 @@ function MethodPage() {
 
 export default function App() {
   const [tab, setTab] = useState<Tab>("studio")
-  const [mode, setMode] = useState<ProjectMode>("home")
+  const [mode, setMode] = useState<ProjectMode>("walk")
   const [persona, setPersona] = useState<PersonaId>("family")
   const [room, setRoom] = useState<RoomId>("living")
   const [walkScene, setWalkScene] = useState<WalkSceneId>("arcade")
   const [location, setLocation] = useState("永庆坊 · 恩宁路骑楼段")
   const [budget, setBudget] = useState<BudgetId>("balanced")
-  const [selectedPriorities, setSelectedPriorities] = useState<PriorityId[]>(["storage", "light", "social"])
+  const [selectedPriorities, setSelectedPriorities] = useState<PriorityId[]>(["light", "safety", "social"])
   const [mission, setMission] = useState(defaultMission)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageName, setImageName] = useState("")
@@ -711,12 +783,13 @@ export default function App() {
   const [error, setError] = useState("")
   const [projects, setProjects] = useState<AgentResult[]>([])
   const [renderState, setRenderState] = useState<RenderState>({ status: "idle", progress: 0 })
+  const [selectedPlan, setSelectedPlan] = useState<PlanVariant>("balanced")
   const resultRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     try {
-      const saved = JSON.parse(localStorage.getItem("qigou-projects") || "[]")
-      if (Array.isArray(saved)) setProjects(saved.slice(0, 8))
+      const saved = JSON.parse(localStorage.getItem("qigou-city-projects") || "[]")
+      if (Array.isArray(saved)) setProjects(saved.filter((item) => item?.input?.mode === "walk").slice(0, 8))
     } catch {
       setProjects([])
     }
@@ -758,16 +831,20 @@ export default function App() {
   const persistProject = (next: AgentResult) => {
     const updated = [next, ...projects.filter((item) => item.traceId !== next.traceId)].slice(0, 8)
     setProjects(updated)
-    localStorage.setItem("qigou-projects", JSON.stringify(updated))
+    localStorage.setItem("qigou-city-projects", JSON.stringify(updated))
   }
 
   const runAgent = async () => {
     if (mission.trim().length < 12) {
-      setError("请至少用 12 个字描述真实的生活需求。")
+      setError("请至少用 12 个字描述真实的城市空间问题与目标。")
+      return
+    }
+    if (!imageUrl) {
+      setError("请先上传一张城市空间的真实照片；本版本不再使用无图基线推测。")
       return
     }
     if (imageUrl && !imageAuthorized) {
-      setError("请先确认空间图片的使用授权。")
+      setError("请先确认城市实景照片的使用授权。")
       return
     }
     setError("")
@@ -775,7 +852,7 @@ export default function App() {
     setRunning(true)
     setActiveStep(0)
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches
-    const input: AgentInput = { mode, persona, room, walkScene, location: location.trim(), budget, priorities: selectedPriorities, mission: mission.trim(), hasImage: Boolean(imageUrl) }
+    const input: AgentInput = { mode: "walk", persona, room, walkScene, location: location.trim(), budget, priorities: selectedPriorities, mission: mission.trim(), hasImage: true }
     let displayedStep = 0
     const stepTimer = window.setInterval(() => {
       displayedStep = Math.min(runSteps.length - 2, displayedStep + 1)
@@ -785,13 +862,13 @@ export default function App() {
       const taskId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
       let response: Response
       try {
-        response = await fetch("/api/renovation/analyze", {
+        response = await fetch("/api/city/analyze", {
           method: "POST",
           headers: { "Content-Type": "application/json", "X-Qigou-Client": getAiClientId() },
           body: JSON.stringify({ taskId, input, image: imageUrl }),
         })
       } catch {
-        throw new Error("无法连接 AI 服务，请检查网络后重新提交。")
+        throw new Error("无法连接城市照片识别服务，请检查网络后重新提交。")
       }
       const initial = await readJsonResponse(response)
       if (!response.ok && response.status !== 202) throw new Error(submissionError(response, initial))
@@ -802,6 +879,7 @@ export default function App() {
       setActiveStep(runSteps.length - 1)
       const next = createAgentResultFromAnalysis(input, payload)
       setRenderState({ status: "idle", progress: 0 })
+      setSelectedPlan("balanced")
       setResult(next)
       persistProject(next)
       window.setTimeout(() => resultRef.current?.scrollIntoView({ behavior: reduceMotion ? "auto" : "smooth", block: "start" }), 80)
@@ -814,7 +892,7 @@ export default function App() {
   }
 
   const openProject = (project: AgentResult) => {
-    setMode(project.input.mode || "home")
+    setMode("walk")
     setPersona(project.input.persona)
     setRoom(project.input.room)
     setWalkScene(project.input.walkScene || "arcade")
@@ -839,9 +917,9 @@ export default function App() {
   const exportResult = () => {
     if (!result) return
     const lines = [
-      `栖构 Living Home｜居家活力更新方案`,
+      `栖构 Living City｜城市活力微更新方案`,
       `任务编号：${result.traceId}`,
-      `对象：${result.input.mode === "walk" ? `${result.input.location} · ${walkScenes.find((item) => item.id === result.input.walkScene)?.name}` : selectedPersona.name}`,
+      `对象：${result.input.location} · ${walkScenes.find((item) => item.id === result.input.walkScene)?.name}`,
       `当前评分：${result.baseline}/15｜目标：${result.target}/15`,
       `预算：${result.budgetRange}｜周期：${result.deliveryCycle}`,
       "",
@@ -857,7 +935,7 @@ export default function App() {
     const url = URL.createObjectURL(blob)
     const link = document.createElement("a")
     link.href = url
-    link.download = `栖构方案-${result.traceId}.txt`
+    link.download = `城市活力方案-${result.traceId}.txt`
     link.click()
     URL.revokeObjectURL(url)
   }
@@ -866,10 +944,10 @@ export default function App() {
     if (!result || !imageUrl) return
     setRenderState({ status: "submitting", progress: 3 })
     try {
-      const response = await fetch("/api/renovation/generate", {
+      const response = await fetch("/api/city/generate", {
         method: "POST",
         headers: { "Content-Type": "application/json", "X-Qigou-Client": getAiClientId() },
-        body: JSON.stringify({ prompt: buildVisualizationPrompt(result), image: imageUrl, size: "1536x1024", quality: "medium" }),
+        body: JSON.stringify({ prompt: buildVisualizationPrompt(result, selectedPlan), image: imageUrl, size: "1536x1024", quality: "medium" }),
       })
       const payload = await response.json()
       if (!response.ok || !payload.task_id) throw new Error(payload.error || "无法提交图像生成任务")
@@ -877,7 +955,7 @@ export default function App() {
       setRenderState({ status: "processing", progress: 8, taskId })
       for (let attempt = 0; attempt < 72; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, 5000))
-        const statusResponse = await fetch(`/api/renovation/status?task_id=${encodeURIComponent(taskId)}`)
+        const statusResponse = await fetch(`/api/city/status?task_id=${encodeURIComponent(taskId)}`)
         const status = await statusResponse.json()
         if (!statusResponse.ok) throw new Error(status.error || "无法读取图像生成进度")
         const reported = Number.parseInt(String(status.progress || "0"), 10)
@@ -906,15 +984,15 @@ export default function App() {
           <div className="workspace" ref={resultRef}>
             <BriefPanel mode={mode} setMode={setMode} persona={persona} setPersona={setPersona} room={room} setRoom={setRoom} walkScene={walkScene} setWalkScene={setWalkScene} location={location} setLocation={setLocation} budget={budget} setBudget={setBudget} selectedPriorities={selectedPriorities} togglePriority={togglePriority} mission={mission} setMission={setMission} imageUrl={imageUrl} imageName={imageName} onImage={onImage} clearImage={clearImage} imageAuthorized={imageAuthorized} setImageAuthorized={setImageAuthorized} running={running} onRun={runAgent} error={error} />
             <div className="agent-stage">
-              {running ? <RunningAgent activeStep={activeStep} /> : result ? <ResultView result={result} sourceImage={imageUrl} renderState={renderState} onGenerate={generateVisualization} onReset={resetResult} onExport={exportResult} /> : <EmptyAgent mode={mode} persona={persona} walkScene={walkScene} location={location} />}
+              {running ? <RunningAgent activeStep={activeStep} /> : result ? <ResultView result={result} sourceImage={imageUrl} renderState={renderState} onGenerate={generateVisualization} onReset={resetResult} onExport={exportResult} selectedPlan={selectedPlan} onSelectPlan={(value) => { setSelectedPlan(value); setRenderState({ status: "idle", progress: 0 }) }} /> : <EmptyAgent mode={mode} persona={persona} walkScene={walkScene} location={location} />}
             </div>
           </div>
         </main>
       )}
-      {tab === "projects" && <ProjectsPage projects={projects} onOpen={openProject} onClear={() => { setProjects([]); localStorage.removeItem("qigou-projects") }} />}
+      {tab === "projects" && <ProjectsPage projects={projects} onOpen={openProject} onClear={() => { setProjects([]); localStorage.removeItem("qigou-city-projects") }} />}
       {tab === "properties" && <PropertiesPage />}
       {tab === "method" && <MethodPage />}
-      <footer className="site-footer"><div><BrandMark /><span><b>栖构 Living Home</b><small>让家适合正在生活的人</small></span></div><p>Living Structure + AI 城市创新研习营 · 概念原型</p><nav><button onClick={() => setTab("method")}>方法与边界</button><button onClick={() => setTab("properties")}>15 个属性</button></nav></footer>
+      <footer className="site-footer"><div><BrandMark /><span><b>栖构 Living City</b><small>看见城市空间的生命结构</small></span></div><p>Living Structure + AI 城市活力诊断 · 概念原型</p><nav><button onClick={() => setTab("method")}>方法与边界</button><button onClick={() => setTab("properties")}>15 个属性</button></nav></footer>
     </div>
   )
 }
