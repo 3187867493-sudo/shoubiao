@@ -157,23 +157,23 @@ LIVING STRUCTURE FOCUS: ${scheme.properties}. Strengthen relationships between w
 }
 
 type PropertyCaseStudy = { name: string; address: string; author: string; image: string; text: string }
-const commonsFile = (name: string) => `https://picsum.photos/seed/${encodeURIComponent(name)}/900/620`
+const inspireImage = (name: string) => `/images/inspire/${name}`
 const propertyCaseStudies: Record<string, PropertyCaseStudy> = {
-  levels: { name: "Piazza del Campo", address: "Siena, Italy", author: "中世纪城市共同体", image: commonsFile("Siena - Piazza del Campo.jpg"), text: "广场、边界建筑、塔楼、街巷入口形成从城市到身体的多级尺度，让人自然理解停留中心。" },
-  centers: { name: "Salk Institute Courtyard", address: "La Jolla, California, USA", author: "Louis I. Kahn", image: commonsFile("Salk Institute1.jpg"), text: "两侧研究楼共同托出中央水渠与天空，强中心不靠装饰，而靠空间关系的收束。" },
-  boundaries: { name: "Katsura Imperial Villa", address: "Kyoto, Japan", author: "小堀远州等，归属日本宫内厅", image: commonsFile("Katsura Imperial Villa Kyoto Japan.jpg"), text: "廊、缘侧、植栽和庭院层层过渡，边界不是硬切割，而是让内外关系变厚。" },
-  repetition: { name: "Great Mosque of Córdoba", address: "Córdoba, Spain", author: "阿卜杜勒·拉赫曼一世及后续工匠", image: commonsFile("Mezquita de Cordoba Spain.jpg"), text: "柱列与拱券交替重复，形成可预期又不断变化的行走节奏。" },
-  positive: { name: "Piazza San Marco", address: "Venice, Italy", author: "多位威尼斯建筑师与工匠", image: commonsFile("Piazza San Marco Venice.jpg"), text: "建筑边界围合出清晰的可停留空间，空地本身像一个有形体的房间。" },
-  shape: { name: "Fallingwater", address: "Mill Run, Pennsylvania, USA", author: "Frank Lloyd Wright", image: commonsFile("Fallingwater - Frank Lloyd Wright.jpg"), text: "水平挑台、岩石、水流和树木共同形成好形状，建筑不是孤立物体。" },
-  symmetry: { name: "Humayun's Tomb Garden", address: "New Delhi, India", author: "Mirak Mirza Ghiyas", image: commonsFile("Humayun's Tomb, Delhi, India.jpg"), text: "局部对称不断出现，但不把整体变成僵硬镜像，秩序和行走体验同时存在。" },
-  interlock: { name: "Court of the Lions", address: "Alhambra, Granada, Spain", author: "Nasrid craftsmen", image: commonsFile("Patio de los Leones Alhambra Granada Spain.jpg"), text: "柱廊、庭院、水渠和视线互相嵌套，让空间边界既清楚又带有暧昧深度。" },
-  contrast: { name: "Therme Vals", address: "Vals, Switzerland", author: "Peter Zumthor", image: commonsFile("Therme Vals, Switzerland.jpg"), text: "石材重量、光线缝隙、热水雾气之间形成克制对比，强化身体感知。" },
-  gradients: { name: "Villa d'Este Gardens", address: "Tivoli, Italy", author: "Pirro Ligorio", image: commonsFile("Villa d'Este Tivoli fountains.jpg"), text: "水、台地、树荫和视线沿高差渐变，使空间从开放到亲密逐步过渡。" },
-  roughness: { name: "Watts Towers", address: "Los Angeles, USA", author: "Simon Rodia", image: commonsFile("Watts Towers Los Angeles.jpg"), text: "手工嵌片和不完全规则的表面保留人的痕迹，让整体更有生命。" },
-  echoes: { name: "Süleymaniye Mosque Complex", address: "Istanbul, Türkiye", author: "Mimar Sinan", image: commonsFile("Suleymaniye Mosque Istanbul.jpg"), text: "穹顶、半穹顶、院落和城市天际线相互呼应，形成跨尺度共鸣。" },
-  void: { name: "Church of the Light", address: "Ibaraki, Osaka, Japan", author: "Tadao Ando", image: commonsFile("Church of the Light Tadao Ando.jpg"), text: "极少的元素围绕一个安静的虚空组织，留白成为感知中心。" },
-  calm: { name: "Ryōan-ji Rock Garden", address: "Kyoto, Japan", author: "作者不详，禅宗庭园传统", image: commonsFile("Ryoanji Kyoto Japan.jpg"), text: "石、砂、墙和空白被压缩到最低限度，形成简洁而内在平静的秩序。" },
-  whole: { name: "The High Line", address: "New York City, USA", author: "James Corner Field Operations, Diller Scofidio + Renfro, Piet Oudolf", image: commonsFile("High Line New York City.jpg"), text: "旧铁路、植物、步行、城市界面和日常活动被重新连接，体现非分离性。" },
+  levels: { name: "Levels of Scale 文献图例", address: "The Nature of Order, Book 1, p.149", author: "Christopher Alexander", image: inspireImage("prop_1_book1_1.png"), text: "阿罕布拉宫错综复杂的几何拼砖与雕刻构成尺度渐进，引导视线从宏伟拱门过渡到微观拼砖细节。" },
+  centers: { name: "Strong Centers 文献图例", address: "The Nature of Order, Book 1, p.153", author: "Christopher Alexander", image: inspireImage("prop_2_book1_1.png"), text: "原始安纳托利亚地毯通过层层向内聚拢的边框，把空间能量与视觉重心引向一个独特而有吸引力的中心。" },
+  boundaries: { name: "Thick Boundaries 文献图例", address: "The Nature of Order, Book 1, p.158", author: "Christopher Alexander", image: inspireImage("prop_3_book1_1.png"), text: "挪威传统仓库的层叠木质立面与出挑屋檐构成厚重边界，使建筑与外部环境之间形成生动过渡。" },
+  repetition: { name: "Alternating Repetition 文献图例", address: "The Nature of Order, Book 1, p.165", author: "Christopher Alexander", image: inspireImage("prop_4_book1_1.png"), text: "土耳其丝绒中起伏的波浪图案有节奏地交替，通过结构化的循环往复带来呼吸感和生命力。" },
+  positive: { name: "Positive Space 文献图例", address: "The Nature of Order, Book 1, p.177", author: "Christopher Alexander", image: inspireImage("prop_5_book1_p177.png"), text: "公共广场、街道与建筑都被塑造为明确的正向几何，让室外虚空也像实体建筑一样有形、有用、可停留。" },
+  shape: { name: "Good Shape 文献图例", address: "The Nature of Order, Book 1, p.181", author: "Christopher Alexander", image: inspireImage("prop_6_book1_1.png"), text: "土耳其天鹅绒图案由简单有力的形状组成，个体清楚，同时又嵌套进更大的几何秩序。" },
+  symmetry: { name: "Local Symmetries 文献图例", address: "The Nature of Order, Book 1, p.193", author: "Christopher Alexander", image: inspireImage("prop_7_book1_2.png"), text: "《凯尔经》手稿中繁复盘绕的图案，被大量细小的局部对称锚定，在自由变化中保持内在连贯。" },
+  interlock: { name: "Deep Interlock and Ambiguity 文献图例", address: "The Nature of Order, Book 1, p.203", author: "Christopher Alexander", image: inspireImage("prop_8_book1_p203.png"), text: "博纳尔绘画中的暖色笔触层层交织，光影边界彼此渗透，形成丰富而有深度的视觉振动。" },
+  contrast: { name: "Contrast 文献图例", address: "The Nature of Order, Book 1, p.200", author: "Christopher Alexander", image: inspireImage("prop_9_book1_1.png"), text: "托斯卡纳教堂立面以深浅石材、白色大理石和凹进空隙形成强烈对比，强化明暗与虚实的张力。" },
+  gradients: { name: "Gradients 文献图例", address: "The Nature of Order, Book 1, p.209", author: "Christopher Alexander", image: inspireImage("prop_10_book1_1.png"), text: "弯曲铁条的间距与粗细平滑变化，展示一个构件如何从一种状态自然过渡到另一种状态。" },
+  roughness: { name: "Roughness 文献图例", address: "The Nature of Order, Book 1, p.210", author: "Christopher Alexander", image: inspireImage("prop_11_book1_1.png"), text: "波斯陶碗的手绘纹样根据相邻空隙自适应调整，保留手作不规则，获得比机械精确更深的和谐。" },
+  echoes: { name: "Echoes 文献图例", address: "The Nature of Order, Book 1, p.218", author: "Christopher Alexander", image: inspireImage("prop_12_book1_1.png"), text: "阿尔贝罗贝洛房屋的圆锥形石屋顶在村落中反复出现，形成把街区统一起来的建筑共鸣。" },
+  void: { name: "The Void 文献图例", address: "The Nature of Order, Book 1, p.224", author: "Christopher Alexander", image: inspireImage("prop_13_book1_1.png"), text: "维米尔画作中宁静发光的墙面虚空凝聚视线，使人物的静止姿态获得深沉而安静的强度。" },
+  calm: { name: "Simplicity and Inner Calm 文献图例", address: "The Nature of Order, Book 1, p.226", author: "Christopher Alexander", image: inspireImage("prop_14_book1_1.png"), text: "克什米尔船屋门廊以简单木柱框住安静水面，在朴素构造中呈现简洁与内在平静。" },
+  whole: { name: "Not-Separateness 文献图例", address: "The Nature of Order, Book 1, p.230", author: "Christopher Alexander", image: inspireImage("prop_15_book1_1.png"), text: "古老英式麦仓的巨大木构架把墙、屋顶、内外空间连为整体，使建筑像从大地中自然延伸出来。" },
 }
 
 function Hero() {
@@ -221,7 +221,7 @@ function BriefPanel(props: BriefProps) {
 }
 
 function EmptyStage() {
-  return <section className="agent-empty reveal"><div className="empty-orbit" aria-hidden="true">{Array.from({ length: 15 }).map((_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}<span>15</span></div><p className="eyebrow"><span>02</span> 城市治疗引擎</p><h2>诊断不是终点，<br /><em>空间改变才是。</em></h2><p>系统会把照片证据转译为 15 项活力结构评分，并同时提出三个不同干预尺度的方案。选择其中一套后，再生成同一场地的改造效果图。</p><div className="empty-flow"><div><b>Diagnose</b><span>照片与 15 属性</span></div><i /><div><b>Compare</b><span>三套更新方向</span></div><i /><div><b>Heal</b><span>效果图与 3M VAS</span></div></div></section>
+  return <section className="agent-empty reveal"><div className="empty-orbit" aria-hidden="true">{Array.from({ length: 15 }).map((_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}</div><p className="eyebrow"><span>02</span> 城市治疗引擎</p><h2>诊断不是终点，<br /><em>空间改变才是。</em></h2><p>系统会把照片证据转译为 15 项活力结构评分，并同时提出三个不同干预尺度的方案。选择其中一套后，再生成同一场地的改造效果图。</p><div className="empty-flow"><div><b>Diagnose</b><span>照片与 15 属性</span></div><i /><div><b>Compare</b><span>三套更新方向</span></div><i /><div><b>Heal</b><span>效果图与 3M VAS</span></div></div></section>
 }
 
 function DynamicEmptyStage() {
@@ -241,7 +241,6 @@ function DynamicEmptyStage() {
     </div>
     <div className="empty-orbit dynamic-orbit" style={{ "--rx": `${tilt.rx}deg`, "--ry": `${tilt.ry}deg` } as CSSProperties} aria-label="亚历山大十五大美学原则动态展示">
       {Array.from({ length: 15 }).map((_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}
-      <span>15</span>
       <div className="principle-cloud">{propertyDefinitions.map((item) => <b key={item.id}>{item.name}</b>)}</div>
     </div>
     <div className="empty-flow"><div><b>Diagnose</b><span>照片与 15 属性</span></div><i /><div><b>Compare</b><span>三套更新方向</span></div><i /><div><b>Heal</b><span>效果图与 3M VAS</span></div></div>
