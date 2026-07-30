@@ -112,7 +112,7 @@ async function readJsonResponse(response: Response): Promise<AnalysisTaskRespons
 async function waitForAnalysisTask(taskId: string) {
   for (let attempt = 0; attempt < 240; attempt += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, attempt < 3 ? 1500 : 3000))
-    const response = await fetch(`/api/renovation/analysis-status?task_id=${encodeURIComponent(taskId)}`, { cache: "no-store" })
+    const response = await fetch(`/api/city/analysis-status?task_id=${encodeURIComponent(taskId)}`, { cache: "no-store" })
     const payload = await readJsonResponse(response)
     if (!response.ok && response.status !== 202) throw new Error(payload.error || "无法查询分析进度")
     if (payload.status === "error") throw new Error(payload.error || "城市空间分析失败")
@@ -304,7 +304,7 @@ export default function App() {
     const timer = window.setInterval(() => { displayedStep = Math.min(runSteps.length - 2, displayedStep + 1); setActiveStep(displayedStep) }, reduceMotion ? 500 : 2100)
     try {
       const taskId = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
-      const response = await fetch("/api/renovation/analyze", { method: "POST", headers: { "Content-Type": "application/json", "X-Qigou-Client": getAiClientId() }, body: JSON.stringify({ taskId, input, image: imageUrl }) })
+      const response = await fetch("/api/city/analyze", { method: "POST", headers: { "Content-Type": "application/json", "X-Qigou-Client": getAiClientId() }, body: JSON.stringify({ taskId, input, image: imageUrl }) })
       const initial = await readJsonResponse(response)
       if (!response.ok && response.status !== 202) throw new Error(initial.error || `分析任务提交失败（HTTP ${response.status}）`)
       const payload = initial.properties ? initial as AnalysisPayload : await waitForAnalysisTask(taskId)
@@ -319,14 +319,14 @@ export default function App() {
     if (!result || !selectedScheme || !imageUrl) return
     setRenderState({ status: "submitting", progress: 3 })
     try {
-      const response = await fetch("/api/renovation/generate", { method: "POST", headers: { "Content-Type": "application/json", "X-Qigou-Client": getAiClientId() }, body: JSON.stringify({ prompt: buildVisualizationPrompt(result, selectedScheme), image: imageUrl, size: "1536x1024", quality: "medium" }) })
+      const response = await fetch("/api/city/generate", { method: "POST", headers: { "Content-Type": "application/json", "X-Qigou-Client": getAiClientId() }, body: JSON.stringify({ prompt: buildVisualizationPrompt(result, selectedScheme), image: imageUrl, size: "1536x1024", quality: "medium" }) })
       const payload = await response.json()
       if (!response.ok || !payload.task_id) throw new Error(payload.error || "无法提交图像生成任务")
       const taskId = String(payload.task_id)
       setRenderState({ status: "processing", progress: 8, taskId })
       for (let attempt = 0; attempt < 180; attempt += 1) {
         await new Promise((resolve) => window.setTimeout(resolve, 5000))
-        const statusResponse = await fetch(`/api/renovation/status?task_id=${encodeURIComponent(taskId)}`, { cache: "no-store" })
+        const statusResponse = await fetch(`/api/city/status?task_id=${encodeURIComponent(taskId)}`, { cache: "no-store" })
         const status = await statusResponse.json()
         if (!statusResponse.ok) throw new Error(status.error || "无法查询图像任务")
         const progress = Math.max(8, Math.min(98, Number(status.progress) || 8 + Math.round(attempt * 1.3)))

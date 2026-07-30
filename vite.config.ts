@@ -70,9 +70,9 @@ function renovationAiApi(): Plugin {
     configureServer(server) {
       server.middlewares.use(async (req, res, next) => {
         const requestUrl = new URL(req.url || '/', 'http://localhost')
-        const isAnalyze = requestUrl.pathname === '/api/renovation/analyze'
-        const isGenerate = requestUrl.pathname === '/api/renovation/generate'
-        const isStatus = requestUrl.pathname === '/api/renovation/status'
+        const isAnalyze = requestUrl.pathname === '/api/city/analyze' || requestUrl.pathname === '/api/renovation/analyze'
+        const isGenerate = requestUrl.pathname === '/api/city/generate' || requestUrl.pathname === '/api/renovation/generate'
+        const isStatus = requestUrl.pathname === '/api/city/status' || requestUrl.pathname === '/api/renovation/status'
         if (!isAnalyze && !isGenerate && !isStatus) return next()
 
         const send = (status: number, payload: unknown) => {
