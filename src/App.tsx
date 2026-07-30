@@ -241,7 +241,7 @@ function DynamicEmptyStage() {
     </div>
     <div className="empty-orbit dynamic-orbit" style={{ "--rx": `${tilt.rx}deg`, "--ry": `${tilt.ry}deg` } as CSSProperties} aria-label="亚历山大十五大美学原则动态展示">
       {Array.from({ length: 15 }).map((_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}
-      <div className="principle-cloud">{propertyDefinitions.map((item) => <b key={item.id}>{item.name}</b>)}</div>
+      <div className="principle-cloud">{propertyDefinitions.map((item, index) => <b key={item.id} style={{ "--i": index } as CSSProperties}>{item.name}</b>)}</div>
     </div>
     <div className="empty-flow"><div><b>Diagnose</b><span>照片与 15 属性</span></div><i /><div><b>Compare</b><span>三套更新方向</span></div><i /><div><b>Heal</b><span>效果图与 3M VAS</span></div></div>
   </section>
