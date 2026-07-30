@@ -62,7 +62,22 @@ function TopNav({ tab, onChange }: { tab: Tab; onChange: (tab: Tab) => void }) {
   </header><nav className="mobile-nav" aria-label="移动端导航">{items.slice(0, 4).map((item) => <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => onChange(item.id)}><Icon name={item.icon} size={18} /><span>{item.label}</span></button>)}</nav></div>
 }
 
-async function fileToCompressedDataUrl(file: File, maxSide = 1280, quality = 0.82) {
+type CompressedImage = { dataUrl: string; bytes: number; width: number; height: number }
+const maxUploadSourceBytes = 24 * 1024 * 1024
+const targetUploadBytes = 1.1 * 1024 * 1024
+
+function dataUrlBytes(dataUrl: string) {
+  const payload = dataUrl.split(",")[1] || ""
+  return Math.round((payload.length * 3) / 4)
+}
+
+function formatBytes(bytes: number) {
+  return bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
+}
+
+async function fileToCompressedDataUrl(file: File): Promise<CompressedImage> {
+  if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error("请上传 JPG、PNG 或 WebP 格式的照片。")
+  if (file.size > maxUploadSourceBytes) throw new Error(`原图过大，请先选择 ${formatBytes(maxUploadSourceBytes)} 以内的照片。`)
   const source = await new Promise<string>((resolve, reject) => {
     const reader = new FileReader()
     reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("无法读取照片"))
@@ -75,16 +90,26 @@ async function fileToCompressedDataUrl(file: File, maxSide = 1280, quality = 0.8
     element.onerror = () => reject(new Error("无法解析照片"))
     element.src = source
   })
-  const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
   const canvas = document.createElement("canvas")
-  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
-  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
   const context = canvas.getContext("2d")
   if (!context) throw new Error("浏览器无法处理这张照片")
-  context.fillStyle = "#edf4ef"
-  context.fillRect(0, 0, canvas.width, canvas.height)
-  context.drawImage(image, 0, 0, canvas.width, canvas.height)
-  return canvas.toDataURL("image/jpeg", quality)
+  let best: CompressedImage | null = null
+  for (const maxSide of [960, 840, 720, 640]) {
+    const scale = Math.min(1, maxSide / Math.max(image.naturalWidth, image.naturalHeight))
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+    context.fillStyle = "#edf4ef"
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    for (const quality of [0.76, 0.68, 0.6, 0.52]) {
+      const dataUrl = canvas.toDataURL("image/jpeg", quality)
+      const candidate = { dataUrl, bytes: dataUrlBytes(dataUrl), width: canvas.width, height: canvas.height }
+      if (!best || candidate.bytes < best.bytes) best = candidate
+      if (candidate.bytes <= targetUploadBytes) return candidate
+    }
+  }
+  if (!best) throw new Error("无法压缩这张照片，请换一张现场照片。")
+  return best
 }
 
 type AnalysisTaskResponse = { task_id?: string; status?: "pending" | "processing" | "complete" | "error"; result?: AnalysisPayload; error?: string }
@@ -132,6 +157,26 @@ ${scheme.actions.map((action, index) => `${index + 1}. ${action.title}: ${action
 LIVING STRUCTURE FOCUS: ${scheme.properties}. Strengthen relationships between walking, staying, edges, centers, shade and existing daily life. Use locally plausible, maintainable materials and realistic daylight. Keep the intervention buildable and proportional to the existing site. Avoid luxury staging, empty monumental plazas, fantasy structures, excessive decoration, glossy showroom materials, text, labels, logos, crowds, watermarks and dramatic cinematic effects. The result must clearly be the same place after a careful urban intervention.`
 }
 
+type PropertyCaseStudy = { name: string; address: string; author: string; image: string; text: string }
+const commonsFile = (name: string) => `https://picsum.photos/seed/${encodeURIComponent(name)}/900/620`
+const propertyCaseStudies: Record<string, PropertyCaseStudy> = {
+  levels: { name: "Piazza del Campo", address: "Siena, Italy", author: "中世纪城市共同体", image: commonsFile("Siena - Piazza del Campo.jpg"), text: "广场、边界建筑、塔楼、街巷入口形成从城市到身体的多级尺度，让人自然理解停留中心。" },
+  centers: { name: "Salk Institute Courtyard", address: "La Jolla, California, USA", author: "Louis I. Kahn", image: commonsFile("Salk Institute1.jpg"), text: "两侧研究楼共同托出中央水渠与天空，强中心不靠装饰，而靠空间关系的收束。" },
+  boundaries: { name: "Katsura Imperial Villa", address: "Kyoto, Japan", author: "小堀远州等，归属日本宫内厅", image: commonsFile("Katsura Imperial Villa Kyoto Japan.jpg"), text: "廊、缘侧、植栽和庭院层层过渡，边界不是硬切割，而是让内外关系变厚。" },
+  repetition: { name: "Great Mosque of Córdoba", address: "Córdoba, Spain", author: "阿卜杜勒·拉赫曼一世及后续工匠", image: commonsFile("Mezquita de Cordoba Spain.jpg"), text: "柱列与拱券交替重复，形成可预期又不断变化的行走节奏。" },
+  positive: { name: "Piazza San Marco", address: "Venice, Italy", author: "多位威尼斯建筑师与工匠", image: commonsFile("Piazza San Marco Venice.jpg"), text: "建筑边界围合出清晰的可停留空间，空地本身像一个有形体的房间。" },
+  shape: { name: "Fallingwater", address: "Mill Run, Pennsylvania, USA", author: "Frank Lloyd Wright", image: commonsFile("Fallingwater - Frank Lloyd Wright.jpg"), text: "水平挑台、岩石、水流和树木共同形成好形状，建筑不是孤立物体。" },
+  symmetry: { name: "Humayun's Tomb Garden", address: "New Delhi, India", author: "Mirak Mirza Ghiyas", image: commonsFile("Humayun's Tomb, Delhi, India.jpg"), text: "局部对称不断出现，但不把整体变成僵硬镜像，秩序和行走体验同时存在。" },
+  interlock: { name: "Court of the Lions", address: "Alhambra, Granada, Spain", author: "Nasrid craftsmen", image: commonsFile("Patio de los Leones Alhambra Granada Spain.jpg"), text: "柱廊、庭院、水渠和视线互相嵌套，让空间边界既清楚又带有暧昧深度。" },
+  contrast: { name: "Therme Vals", address: "Vals, Switzerland", author: "Peter Zumthor", image: commonsFile("Therme Vals, Switzerland.jpg"), text: "石材重量、光线缝隙、热水雾气之间形成克制对比，强化身体感知。" },
+  gradients: { name: "Villa d'Este Gardens", address: "Tivoli, Italy", author: "Pirro Ligorio", image: commonsFile("Villa d'Este Tivoli fountains.jpg"), text: "水、台地、树荫和视线沿高差渐变，使空间从开放到亲密逐步过渡。" },
+  roughness: { name: "Watts Towers", address: "Los Angeles, USA", author: "Simon Rodia", image: commonsFile("Watts Towers Los Angeles.jpg"), text: "手工嵌片和不完全规则的表面保留人的痕迹，让整体更有生命。" },
+  echoes: { name: "Süleymaniye Mosque Complex", address: "Istanbul, Türkiye", author: "Mimar Sinan", image: commonsFile("Suleymaniye Mosque Istanbul.jpg"), text: "穹顶、半穹顶、院落和城市天际线相互呼应，形成跨尺度共鸣。" },
+  void: { name: "Church of the Light", address: "Ibaraki, Osaka, Japan", author: "Tadao Ando", image: commonsFile("Church of the Light Tadao Ando.jpg"), text: "极少的元素围绕一个安静的虚空组织，留白成为感知中心。" },
+  calm: { name: "Ryōan-ji Rock Garden", address: "Kyoto, Japan", author: "作者不详，禅宗庭园传统", image: commonsFile("Ryoanji Kyoto Japan.jpg"), text: "石、砂、墙和空白被压缩到最低限度，形成简洁而内在平静的秩序。" },
+  whole: { name: "The High Line", address: "New York City, USA", author: "James Corner Field Operations, Diller Scofidio + Renfro, Piet Oudolf", image: commonsFile("High Line New York City.jpg"), text: "旧铁路、植物、步行、城市界面和日常活动被重新连接，体现非分离性。" },
+}
+
 function Hero() {
   return <section className="hero reveal">
     <div className="hero-copy">
@@ -155,7 +200,7 @@ function SectionLabel({ index, title, hint }: { index: string; title: string; hi
 type BriefProps = {
   scene: UrbanSceneId; setScene: (value: UrbanSceneId) => void; location: string; setLocation: (value: string) => void
   budget: BudgetId; setBudget: (value: BudgetId) => void; selectedPriorities: PriorityId[]; togglePriority: (value: PriorityId) => void
-  mission: string; setMission: (value: string) => void; imageUrl: string | null; imageName: string; onImage: (event: ChangeEvent<HTMLInputElement>) => void
+  mission: string; setMission: (value: string) => void; imageUrl: string | null; imageName: string; imageMeta: string; onImage: (event: ChangeEvent<HTMLInputElement>) => void
   clearImage: () => void; imageAuthorized: boolean; setImageAuthorized: (value: boolean) => void; running: boolean; onRun: () => void; error: string
 }
 
@@ -167,7 +212,7 @@ function BriefPanel(props: BriefProps) {
     <section className="form-section"><SectionLabel index="C" title="优先关注" hint="最多选择 4 项" /><div className="priority-options">{priorities.map((item) => <button key={item.id} className={props.selectedPriorities.includes(item.id) ? "selected" : ""} onClick={() => props.togglePriority(item.id)}>{item.name}</button>)}</div></section>
     <section className="form-section"><SectionLabel index="D" title="实施尺度" hint="用于控制方案干预强度" /><div className="budget-options">{budgets.map((item) => <button key={item.id} className={props.budget === item.id ? "selected" : ""} onClick={() => props.setBudget(item.id)}><b>{item.name}</b><small>{item.note}</small></button>)}</div></section>
     <section className="form-section"><SectionLabel index="E" title="现场观察" hint="说明正在发生什么，而不只是想要什么风格" /><textarea value={props.mission} maxLength={600} onChange={(event) => props.setMission(event.target.value)} /><div className="char-count"><span>活动、冲突与期待</span><span>{props.mission.length}/600</span></div></section>
-    <section className="form-section"><SectionLabel index="F" title="城市照片" hint="诊断必须基于一张现场照片" />{props.imageUrl ? <div className="image-preview"><img src={props.imageUrl} alt="待诊断的城市空间照片" /><div><b>{props.imageName}</b><span>已压缩用于本次分析</span></div><button onClick={props.clearImage} aria-label="移除照片"><Icon name="close" size={17} /></button></div> : <label className="upload-box"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={props.onImage} /><span><Icon name="camera" size={22} /></span><b>上传现场照片</b><small>JPG / PNG / WebP · 原图不进入方案历史</small></label>}
+    <section className="form-section"><SectionLabel index="F" title="城市照片" hint="诊断必须基于一张现场照片" />{props.imageUrl ? <div className="image-preview"><img src={props.imageUrl} alt="待诊断的城市空间照片" /><div><b>{props.imageName}</b><span>{props.imageMeta || "已压缩用于本次分析"}</span></div><button onClick={props.clearImage} aria-label="移除照片"><Icon name="close" size={17} /></button></div> : <label className="upload-box"><input type="file" accept="image/jpeg,image/png,image/webp" onChange={props.onImage} /><span><Icon name="camera" size={22} /></span><b>上传现场照片</b><small>自动压缩到约 1.1 MB 内，降低任务失败率</small></label>}
       {props.imageUrl && <label className={`consent ${props.imageAuthorized ? "checked" : ""}`}><input type="checkbox" checked={props.imageAuthorized} onChange={(event) => props.setImageAuthorized(event.target.checked)} /><span>{props.imageAuthorized && <Icon name="check" size={13} />}</span><p>我确认拥有该照片的使用权，并同意仅用于本次城市空间诊断。</p></label>}
     </section>
     {props.error && <p className="form-error" role="alert">{props.error}</p>}
@@ -178,6 +223,30 @@ function BriefPanel(props: BriefProps) {
 
 function EmptyStage() {
   return <section className="agent-empty reveal"><div className="empty-orbit" aria-hidden="true">{Array.from({ length: 15 }).map((_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}<span>15</span></div><p className="eyebrow"><span>02</span> 城市治疗引擎</p><h2>诊断不是终点，<br /><em>空间改变才是。</em></h2><p>系统会把照片证据转译为 15 项活力结构评分，并同时提出三个不同干预尺度的方案。选择其中一套后，再生成同一场地的改造效果图。</p><div className="empty-flow"><div><b>Diagnose</b><span>照片与 15 属性</span></div><i /><div><b>Compare</b><span>三套更新方向</span></div><i /><div><b>Heal</b><span>效果图与 3M VAS</span></div></div></section>
+}
+
+function DynamicEmptyStage() {
+  const [tilt, setTilt] = useState({ rx: 0, ry: 0 })
+  const handleMove = (event: MouseEvent<HTMLElement>) => {
+    const rect = event.currentTarget.getBoundingClientRect()
+    const x = (event.clientX - rect.left) / rect.width - 0.5
+    const y = (event.clientY - rect.top) / rect.height - 0.5
+    setTilt({ rx: y * -10, ry: x * 14 })
+  }
+  const resetTilt = () => setTilt({ rx: 0, ry: 0 })
+  return <section className="agent-empty agent-empty-dynamic reveal" onMouseMove={handleMove} onMouseLeave={resetTilt}>
+    <div className="empty-copy">
+      <p className="eyebrow"><span>02</span> 城市治疗引擎</p>
+      <h2>诊断不是终点，<br /><em>空间改变才是。</em></h2>
+      <p>系统会把照片证据转译为 15 项活力结构评分，并同时提出三个不同干预尺度的方案。选择其中一套后，再生成同一场地的改造效果图。</p>
+    </div>
+    <div className="empty-orbit dynamic-orbit" style={{ "--rx": `${tilt.rx}deg`, "--ry": `${tilt.ry}deg` } as CSSProperties} aria-label="亚历山大十五大美学原则动态展示">
+      {Array.from({ length: 15 }).map((_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}
+      <span>15</span>
+      <div className="principle-cloud">{propertyDefinitions.map((item) => <b key={item.id}>{item.name}</b>)}</div>
+    </div>
+    <div className="empty-flow"><div><b>Diagnose</b><span>照片与 15 属性</span></div><i /><div><b>Compare</b><span>三套更新方向</span></div><i /><div><b>Heal</b><span>效果图与 3M VAS</span></div></div>
+  </section>
 }
 
 function RunningStage({ activeStep }: { activeStep: number }) {
@@ -252,6 +321,14 @@ function PropertiesPage() {
   return <main className="page-shell subpage"><header className="subpage-head"><div><p className="eyebrow"><span>15 Properties</span> Christopher Alexander</p><h1>不判断风格，<br /><span>判断空间是否有生命。</span></h1><p>15 个属性是一套观察整体关系的语言。它们帮助我们看见中心、边界、尺度、渐变和场所之间如何彼此支持。</p></div><div className="property-stamp"><strong>15</strong><span>每项 0–1<br />总分 15</span></div></header><section className="property-groups">{groups.map((group) => <article key={group}><h2>{group}</h2><div>{propertyDefinitions.filter((item) => item.group === group).map((item) => <section key={item.id}><span>{String(item.index).padStart(2, "0")}</span><p><b>{item.name}</b><small>{item.english}</small></p></section>)}</div></article>)}</section></main>
 }
 
+function InteractivePropertiesPage() {
+  const [selectedId, setSelectedId] = useState(propertyDefinitions[0]?.id || "")
+  const selected = propertyDefinitions.find((item) => item.id === selectedId) ?? propertyDefinitions[0]
+  const selectedCase = propertyCaseStudies[selected.id]
+  const groups = Array.from(new Set(propertyDefinitions.map((item) => item.group)))
+  return <main className="page-shell subpage properties-page"><header className="subpage-head properties-head"><div><p className="eyebrow"><span>15 Properties</span> Christopher Alexander</p><h1 className="single-line-title">不判断风格，<span>判断空间是否有生命。</span></h1><p>15 个属性是一套观察整体关系的语言。它们帮助我们看见中心、边界、尺度、渐变和场所之间如何彼此支持。</p></div><div className="property-stamp soft-stamp"><strong>15</strong><span>每项 0–1<br />总分 15</span></div></header><section className="property-learning-grid"><div className="property-groups interactive-groups">{groups.map((group) => <article key={group}><h2>{group}</h2><div>{propertyDefinitions.filter((item) => item.group === group).map((item) => <button key={item.id} className={item.id === selected.id ? "selected" : ""} onClick={() => setSelectedId(item.id)}><span>{String(item.index).padStart(2, "0")}</span><p><b>{item.name}</b><small>{item.english}</small></p><i><Icon name="arrow" size={14} /></i></button>)}</div></article>)}</div><aside className="property-case-panel liquid-glass"><div className="case-image"><img src={selectedCase.image} alt={`${selectedCase.name} 案例图例`} onError={(event) => { event.currentTarget.src = "/urban-hero.svg" }} /></div><div className="case-copy"><p className="eyebrow"><span>{String(selected.index).padStart(2, "0")}</span> {selected.english}</p><h2>{selected.name}</h2><p>{selectedCase.text}</p><dl><div><dt>经典案例</dt><dd>{selectedCase.name}</dd></div><div><dt>地址</dt><dd>{selectedCase.address}</dd></div><div><dt>作者</dt><dd>{selectedCase.author}</dd></div></dl></div></aside></section></main>
+}
+
 const sampleVasImage = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#dcece5"/><stop offset=".56" stop-color="#f7faf7"/><stop offset="1" stop-color="#c6d9d1"/></linearGradient><linearGradient id="p" x1="0" x2="1"><stop offset="0" stop-color="#78938b"/><stop offset="1" stop-color="#edf4ef"/></linearGradient></defs><rect width="1400" height="900" fill="url(#g)"/><path d="M0 690 C220 570 410 570 620 650 C850 735 1040 705 1400 555 L1400 900 L0 900 Z" fill="url(#p)"/><g fill="#17332d" opacity=".72"><rect x="118" y="318" width="160" height="270" rx="16"/><rect x="1088" y="250" width="196" height="330" rx="18"/><rect x="760" y="360" width="180" height="210" rx="14"/></g><g fill="#2e796b" opacity=".85"><circle cx="395" cy="520" r="48"/><circle cx="480" cy="500" r="64"/><circle cx="1030" cy="548" r="58"/></g><path d="M130 670 C360 620 620 645 885 615 C1040 598 1200 560 1320 500" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" opacity=".82"/><path d="M120 708 C430 670 720 710 1050 620" fill="none" stroke="#2e796b" stroke-width="7" opacity=".45"/></svg>`)}`
 function VasPage() {
   return <main className="page-shell subpage vas-page"><header className="subpage-head"><div><p className="eyebrow"><span>Visual Attention</span> 参考 3M VAS</p><h1>不是问“喜欢吗”，<br /><span>而是看“先看到哪里”。</span></h1><p>公众在改造效果图上标记最吸引视线的位置，系统汇总为从蓝到红的视觉注意热图，用来检查方案是否形成清晰而不过度竞争的中心。</p></div></header><VisualAttentionMap imageUrl={sampleVasImage} storageKey="public-demo" /></main>
@@ -270,6 +347,7 @@ export default function App() {
   const [mission, setMission] = useState(defaultMission)
   const [imageUrl, setImageUrl] = useState<string | null>(null)
   const [imageName, setImageName] = useState("")
+  const [imageMeta, setImageMeta] = useState("")
   const [imageAuthorized, setImageAuthorized] = useState(false)
   const [running, setRunning] = useState(false)
   const [activeStep, setActiveStep] = useState(0)
@@ -287,10 +365,20 @@ export default function App() {
   const onImage = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (!file) return
-    if (file.size > 12 * 1024 * 1024) return setError("照片请控制在 12 MB 以内。")
-    try { const compressed = await fileToCompressedDataUrl(file); setImageUrl(compressed); setImageName(file.name); setImageAuthorized(false); setError("") } catch (caught) { setError(caught instanceof Error ? caught.message : "无法读取照片") }
+    try {
+      const compressed = await fileToCompressedDataUrl(file)
+      setImageUrl(compressed.dataUrl)
+      setImageName(file.name)
+      setImageMeta(`已压缩至 ${formatBytes(compressed.bytes)} · ${compressed.width}×${compressed.height}`)
+      setImageAuthorized(false)
+      setError("")
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "无法读取照片")
+    } finally {
+      event.target.value = ""
+    }
   }
-  const clearImage = () => { setImageUrl(null); setImageName(""); setImageAuthorized(false) }
+  const clearImage = () => { setImageUrl(null); setImageName(""); setImageMeta(""); setImageAuthorized(false) }
   const persistProject = (next: AgentResult) => { const updated = [next, ...projects.filter((item) => item.traceId !== next.traceId)].slice(0, 8); setProjects(updated); localStorage.setItem("qigou-urban-projects-v2", JSON.stringify(updated)) }
 
   const runAgent = async () => {
@@ -345,5 +433,5 @@ export default function App() {
     const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" })); const link = document.createElement("a"); link.href = url; link.download = `城市活力诊断-${result.traceId}.txt`; link.click(); URL.revokeObjectURL(url)
   }
 
-  return <div className="app-shell"><TopNav tab={tab} onChange={setTab} />{tab === "diagnose" ? <main className="page-shell"><Hero /><section className="urban-studio"><BriefPanel scene={scene} setScene={setScene} location={location} setLocation={setLocation} budget={budget} setBudget={setBudget} selectedPriorities={selectedPriorities} togglePriority={togglePriority} mission={mission} setMission={setMission} imageUrl={imageUrl} imageName={imageName} onImage={onImage} clearImage={clearImage} imageAuthorized={imageAuthorized} setImageAuthorized={setImageAuthorized} running={running} onRun={runAgent} error={error} /><div className="agent-stage" ref={resultRef}>{running ? <RunningStage activeStep={activeStep} /> : result ? <ResultView result={result} sourceImage={imageUrl} renderState={renderState} selectedSchemeId={selectedSchemeId} onSelectScheme={selectScheme} onGenerate={generateVisualization} onReset={() => { setResult(null); setError("") }} onExport={exportResult} /> : <EmptyStage />}</div></section></main> : tab === "projects" ? <ProjectsPage projects={projects} onOpen={openProject} onClear={() => { setProjects([]); localStorage.removeItem("qigou-urban-projects-v2") }} /> : tab === "properties" ? <PropertiesPage /> : tab === "vas" ? <VasPage /> : <MethodPage />}<footer className="site-footer"><div><BrandMark /><p><b>栖构 Urban Aliveness</b><span>让城市空间支持正在发生的生活</span></p></div><p>Living Structure + AI 城市创新研习营 · 香港科技大学（广州）</p><nav><button onClick={() => setTab("method")}>方法与边界</button><button onClick={() => setTab("vas")}>视觉注意热图</button></nav></footer></div>
+  return <div className="app-shell"><TopNav tab={tab} onChange={setTab} />{tab === "diagnose" ? <main className="page-shell"><Hero /><section className="urban-studio"><BriefPanel scene={scene} setScene={setScene} location={location} setLocation={setLocation} budget={budget} setBudget={setBudget} selectedPriorities={selectedPriorities} togglePriority={togglePriority} mission={mission} setMission={setMission} imageUrl={imageUrl} imageName={imageName} imageMeta={imageMeta} onImage={onImage} clearImage={clearImage} imageAuthorized={imageAuthorized} setImageAuthorized={setImageAuthorized} running={running} onRun={runAgent} error={error} /><div className="agent-stage" ref={resultRef}>{running ? <RunningStage activeStep={activeStep} /> : result ? <ResultView result={result} sourceImage={imageUrl} renderState={renderState} selectedSchemeId={selectedSchemeId} onSelectScheme={selectScheme} onGenerate={generateVisualization} onReset={() => { setResult(null); setError("") }} onExport={exportResult} /> : <DynamicEmptyStage />}</div></section></main> : tab === "projects" ? <ProjectsPage projects={projects} onOpen={openProject} onClear={() => { setProjects([]); localStorage.removeItem("qigou-urban-projects-v2") }} /> : tab === "properties" ? <InteractivePropertiesPage /> : tab === "vas" ? <VasPage /> : <MethodPage />}<footer className="site-footer"><div><BrandMark /><p><b>栖构 Urban Aliveness</b><span>让城市空间支持正在发生的生活</span></p></div><p>Living Structure + AI 城市创新研习营 · 香港科技大学（广州）</p><nav><button onClick={() => setTab("method")}>方法与边界</button><button onClick={() => setTab("vas")}>视觉注意热图</button></nav></footer></div>
 }
