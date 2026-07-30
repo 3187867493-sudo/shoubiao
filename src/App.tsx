@@ -274,11 +274,12 @@ type RenderState = { status: "idle" | "submitting" | "processing" | "complete" |
 type AttentionPoint = { x: number; y: number }
 type AttentionRecord = { points: AttentionPoint[]; participants: number }
 
-function VisualAttentionMap({ imageUrl, storageKey }: { imageUrl: string; storageKey: string }) {
+function VisualAttentionMap({ imageUrl, storageKey, imageLabel, onNextImage, onAfterSubmit, children }: { imageUrl: string; storageKey: string; imageLabel?: string; onNextImage?: () => void; onAfterSubmit?: () => void; children?: ReactNode }) {
   const [record, setRecord] = useState<AttentionRecord>({ points: [], participants: 0 })
   const [current, setCurrent] = useState<AttentionPoint[]>([])
   useEffect(() => {
-    try { const saved = JSON.parse(localStorage.getItem(`qigou-vas-${storageKey}`) || "null"); if (saved?.points) setRecord(saved) } catch { setRecord({ points: [], participants: 0 }) }
+    setCurrent([])
+    try { const saved = JSON.parse(localStorage.getItem(`qigou-vas-${storageKey}`) || "null"); setRecord(saved?.points ? saved : { points: [], participants: 0 }) } catch { setRecord({ points: [], participants: 0 }) }
   }, [storageKey])
   const allPoints = [...record.points, ...current]
   const addPoint = (event: MouseEvent<HTMLDivElement>) => {
@@ -289,14 +290,14 @@ function VisualAttentionMap({ imageUrl, storageKey }: { imageUrl: string; storag
   const submit = () => {
     if (!current.length) return
     const next = { points: [...record.points, ...current], participants: record.participants + 1 }
-    setRecord(next); setCurrent([]); localStorage.setItem(`qigou-vas-${storageKey}`, JSON.stringify(next))
+    setRecord(next); setCurrent([]); localStorage.setItem(`qigou-vas-${storageKey}`, JSON.stringify(next)); onAfterSubmit?.()
   }
   const reset = () => { setRecord({ points: [], participants: 0 }); setCurrent([]); localStorage.removeItem(`qigou-vas-${storageKey}`) }
   const cells = new Map<string, number>()
   record.points.forEach((point) => { const key = `${Math.floor(point.x / 20)}-${Math.floor(point.y / 20)}`; cells.set(key, (cells.get(key) || 0) + 1) })
   const peak = Math.max(0, ...cells.values())
   const concentration = record.points.length ? Math.round((peak / record.points.length) * 100) : 0
-  return <section className="vas-panel"><header><div><p className="eyebrow"><span>参考 3M VAS</span> 公众视觉注意反馈</p><h3>改造后，视线首先落在哪里？</h3><p>请参与者在图中选择最多 3 个最吸引视线的位置。不询问心情，只记录视觉注意。</p></div><div className="vas-metrics"><span><b>{record.participants}</b>参与者</span><span><b>{record.points.length}</b>关注点</span><span><b>{concentration}%</b>集中度</span></div></header><div className="vas-workspace"><div className="heatmap-frame" onClick={addPoint} role="application" aria-label="点击改造后图片添加视觉关注点"><img src={imageUrl} alt="用于公众视觉注意反馈的改造后城市空间" /><div className="heat-layer">{allPoints.map((point, index) => <i key={`${point.x}-${point.y}-${index}`} className={index >= record.points.length ? "pending" : ""} style={{ left: `${point.x}%`, top: `${point.y}%` }} />)}</div>{current.map((point, index) => <span key={`marker-${index}`} className="attention-marker" style={{ left: `${point.x}%`, top: `${point.y}%` }}>{index + 1}</span>)}</div><aside><div className="heat-legend"><span>低关注</span><i /><span>高关注</span></div><p>蓝色表示较少注意，红色表示注意集中。热图用于比较方案是否形成清晰而适度的视觉中心。</p><div className="selection-count"><b>{current.length}</b><span>/ 3 本轮选择</span></div><button disabled={!current.length} onClick={submit}>提交本轮反馈 <Icon name="arrow" size={15} /></button>{record.points.length > 0 && <button className="text-action" onClick={reset}>清空本机演示数据</button>}</aside></div><footer><Icon name="info" size={15} /><p>这是参考 3M VAS（Visual Attention Software）视觉注意逻辑的公众共评原型，并非调用 3M 专有预测算法。结果保存在当前浏览器。</p></footer></section>
+  return <section className="vas-panel"><header><div><p className="eyebrow"><span>参考 3M VAS</span> 公众视觉注意反馈</p><h3>改造后，视线首先落在哪里？</h3><p>请参与者在图中选择最多 3 个最吸引视线的位置。不询问心情，只记录视觉注意。</p></div><div className="vas-metrics"><span><b>{record.participants}</b>参与者</span><span><b>{record.points.length}</b>关注点</span><span><b>{concentration}%</b>集中度</span></div></header>{(imageLabel || onNextImage) && <div className="vas-image-toolbar"><span>{imageLabel || "城市样本"}</span>{onNextImage && <button onClick={onNextImage}>换一张城市图片 <Icon name="refresh" size={14} /></button>}</div>}<div className="vas-workspace"><div className="heatmap-frame" onClick={addPoint} role="application" aria-label="点击改造后图片添加视觉关注点"><img src={imageUrl} alt="用于公众视觉注意反馈的改造后城市空间" /><div className="heat-layer">{allPoints.map((point, index) => <i key={`${point.x}-${point.y}-${index}`} className={index >= record.points.length ? "pending" : ""} style={{ left: `${point.x}%`, top: `${point.y}%` }} />)}</div>{current.map((point, index) => <span key={`marker-${index}`} className="attention-marker" style={{ left: `${point.x}%`, top: `${point.y}%` }}>{index + 1}</span>)}</div><aside><div className="heat-legend"><span>低关注</span><i /><span>高关注</span></div><p>蓝色表示较少注意，红色表示注意集中。热图用于比较方案是否形成清晰而适度的视觉中心。</p><div className="selection-count"><b>{current.length}</b><span>/ 3 本轮选择</span></div><button disabled={!current.length} onClick={submit}>提交本轮反馈 <Icon name="arrow" size={15} /></button>{record.points.length > 0 && <button className="text-action" onClick={reset}>清空本机演示数据</button>}{children}</aside></div><footer><Icon name="info" size={15} /><p>这是参考 3M VAS（Visual Attention Software）视觉注意逻辑的公众共评原型，并非调用 3M 专有预测算法。结果保存在当前浏览器。</p></footer></section>
 }
 
 function VisualizationWorkspace({ result, scheme, sourceImage, state, onGenerate }: { result: AgentResult; scheme: UrbanScheme; sourceImage: string | null; state: RenderState; onGenerate: () => void }) {
@@ -329,9 +330,24 @@ function InteractivePropertiesPage() {
   return <main className="page-shell subpage properties-page"><header className="subpage-head properties-head"><div><p className="eyebrow"><span>15 Properties</span> Christopher Alexander</p><h1 className="single-line-title">不判断风格，<span>判断空间是否有生命。</span></h1><p>15 个属性是一套观察整体关系的语言。它们帮助我们看见中心、边界、尺度、渐变和场所之间如何彼此支持。</p></div><div className="property-stamp soft-stamp"><strong>15</strong><span>每项 0–1<br />总分 15</span></div></header><section className="property-learning-grid"><div className="property-groups interactive-groups">{groups.map((group) => <article key={group}><h2>{group}</h2><div>{propertyDefinitions.filter((item) => item.group === group).map((item) => <button key={item.id} className={item.id === selected.id ? "selected" : ""} onClick={() => setSelectedId(item.id)}><span>{String(item.index).padStart(2, "0")}</span><p><b>{item.name}</b><small>{item.english}</small></p><i><Icon name="arrow" size={14} /></i></button>)}</div></article>)}</div><aside className="property-case-panel liquid-glass"><div className="case-image"><img src={selectedCase.image} alt={`${selectedCase.name} 案例图例`} onError={(event) => { event.currentTarget.src = "/urban-hero.svg" }} /></div><div className="case-copy"><p className="eyebrow"><span>{String(selected.index).padStart(2, "0")}</span> {selected.english}</p><h2>{selected.name}</h2><p>{selectedCase.text}</p><dl><div><dt>经典案例</dt><dd>{selectedCase.name}</dd></div><div><dt>地址</dt><dd>{selectedCase.address}</dd></div><div><dt>作者</dt><dd>{selectedCase.author}</dd></div></dl></div></aside></section></main>
 }
 
-const sampleVasImage = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#dcece5"/><stop offset=".56" stop-color="#f7faf7"/><stop offset="1" stop-color="#c6d9d1"/></linearGradient><linearGradient id="p" x1="0" x2="1"><stop offset="0" stop-color="#78938b"/><stop offset="1" stop-color="#edf4ef"/></linearGradient></defs><rect width="1400" height="900" fill="url(#g)"/><path d="M0 690 C220 570 410 570 620 650 C850 735 1040 705 1400 555 L1400 900 L0 900 Z" fill="url(#p)"/><g fill="#17332d" opacity=".72"><rect x="118" y="318" width="160" height="270" rx="16"/><rect x="1088" y="250" width="196" height="330" rx="18"/><rect x="760" y="360" width="180" height="210" rx="14"/></g><g fill="#2e796b" opacity=".85"><circle cx="395" cy="520" r="48"/><circle cx="480" cy="500" r="64"/><circle cx="1030" cy="548" r="58"/></g><path d="M130 670 C360 620 620 645 885 615 C1040 598 1200 560 1320 500" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" opacity=".82"/><path d="M120 708 C430 670 720 710 1050 620" fill="none" stroke="#2e796b" stroke-width="7" opacity=".45"/></svg>`)}`
+const vasCitySamples = [
+  { id: "urban-hero", label: "高密度建筑界面 · 默认城市样本", image: "/urban-hero.svg" },
+  { id: "street-canyon", label: "城市街谷 · 商业街与高层边界", image: "https://images.unsplash.com/photo-1449824913935-59a10b8d2000?auto=format&fit=crop&w=1400&q=82" },
+  { id: "night-grid", label: "夜间城市 · 光线与街道节奏", image: "https://images.unsplash.com/photo-1519501025264-65ba15a82390?auto=format&fit=crop&w=1400&q=82" },
+  { id: "civic-form", label: "公共建筑 · 体量与视觉中心", image: "https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=1400&q=82" },
+]
 function VasPage() {
-  return <main className="page-shell subpage vas-page"><header className="subpage-head"><div><p className="eyebrow"><span>Visual Attention</span> 参考 3M VAS</p><h1>不是问“喜欢吗”，<br /><span>而是看“先看到哪里”。</span></h1><p>公众在改造效果图上标记最吸引视线的位置，系统汇总为从蓝到红的视觉注意热图，用来检查方案是否形成清晰而不过度竞争的中心。</p></div></header><VisualAttentionMap imageUrl={sampleVasImage} storageKey="public-demo" /></main>
+  const [sampleIndex, setSampleIndex] = useState(0)
+  const [publicCount, setPublicCount] = useState(0)
+  useEffect(() => { setPublicCount(Number(localStorage.getItem("qigou-vas-public-count") || "0")) }, [])
+  const sample = vasCitySamples[sampleIndex % vasCitySamples.length]
+  const addParticipation = () => {
+    const next = publicCount + 1
+    setPublicCount(next)
+    localStorage.setItem("qigou-vas-public-count", String(next))
+  }
+  const unlocked = publicCount >= 10
+  return <main className="page-shell subpage vas-page"><header className="subpage-head"><div><p className="eyebrow"><span>Visual Attention</span> 参考 3M VAS</p><h1>不是问“喜欢吗”，<br /><span>而是看“先看到哪里”。</span></h1><p>公众在真实城市图片与改造效果图上标记最吸引视线的位置，系统汇总为从蓝到红的视觉注意热图，用来把人的真实感受纳入建筑美学体系与城市更新讨论。</p></div></header><section className="civic-vote-card liquid-glass"><div><p className="eyebrow"><span>Participation</span> 真实改造投票权</p><h2>完成 10 次视线测试，解锁真实空间的方案投票资格。</h2><p>这个机制不是为了“刷点击”，而是让用户知道自己的视线数据会进入方案比较：哪些地方真的吸引人、哪些中心过弱、哪些理论判断需要被公众感受校正。</p></div><aside><strong>{Math.min(publicCount, 10)}<span>/10</span></strong><i><b style={{ transform: `scaleX(${Math.min(publicCount, 10) / 10})` }} /></i><p>{unlocked ? "已获得意见提交资格" : `还需 ${10 - publicCount} 次测试`}</p><button disabled={!unlocked}>{unlocked ? "提交真实改造意见" : "资格待解锁"}</button></aside></section><VisualAttentionMap imageUrl={sample.image} storageKey={`public-demo-${sample.id}`} imageLabel={sample.label} onNextImage={() => setSampleIndex((index) => index + 1)} onAfterSubmit={addParticipation}><div className="vote-unlock-mini"><span>共建资格</span><b>{Math.min(publicCount, 10)}/10</b><small>{unlocked ? "已解锁投票入口" : "提交本轮后累计一次"}</small></div></VisualAttentionMap></main>
 }
 
 function MethodPage() {

@@ -348,11 +348,25 @@
   .vas-panel { border-radius: 30px; padding: 30px; background: linear-gradient(145deg,#f7faf8,#eaf2ed); box-shadow: inset 0 1px 0 #fff, 0 20px 54px rgba(38,83,69,.08); }
   .vas-panel > header { display: flex; justify-content: space-between; gap: 32px; align-items: flex-end; margin-bottom: 22px; }
   .vas-panel > header h3 { margin: 15px 0 7px; font-size: 25px; letter-spacing: -.03em; }
-  .vas-panel > header > div > p:last-child { max-width: 620px; margin: 0; color: var(--muted); font-size: 12px; line-height: 1.68; }
+  .vas-panel > header > div > p:last-child { max-width: 620px; margin: 0; color: var(--ink-soft); font-size: 14px; line-height: 1.7; }
   .vas-metrics { display: flex; gap: 8px; }
   .vas-metrics span { display: grid; min-width: 73px; gap: 2px; padding: 10px; border-radius: 14px; text-align: center; background: rgba(255,255,255,.65); }
   .vas-metrics b { font-size: 17px; font-variant-numeric: tabular-nums; }
   .vas-metrics span { color: var(--muted); font-size: 10px; }
+  .civic-vote-card { display: grid; grid-template-columns: minmax(0,1fr) 250px; gap: 28px; align-items: center; margin: -18px 0 24px; padding: 30px; border-radius: 30px; background: var(--p1-wash); }
+  .civic-vote-card h2 { max-width: 760px; margin: 16px 0 10px; color: var(--ink); font-size: clamp(28px,3vw,42px); line-height: 1.2; letter-spacing: -.04em; }
+  .civic-vote-card p:not(.eyebrow) { max-width: 760px; margin: 0; color: var(--ink-soft); font-size: 15px; line-height: 1.78; }
+  .civic-vote-card aside { display: grid; gap: 12px; padding: 22px; border-radius: 24px; background: rgba(255,255,255,.58); box-shadow: inset 0 1px 0 rgba(255,255,255,.7); }
+  .civic-vote-card strong { color: var(--jade-dark); font-size: 54px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .civic-vote-card strong span { color: var(--ink-soft); font-size: 20px; }
+  .civic-vote-card aside > i { height: 8px; overflow: hidden; border-radius: 999px; background: rgba(46,121,107,.12); }
+  .civic-vote-card aside > i b { display: block; width: 100%; height: 100%; background: linear-gradient(90deg,#2e796b,#df7567); transform-origin: left; transition: transform 520ms var(--ease); }
+  .civic-vote-card aside p { margin: 0; color: var(--ink); font-size: 14px; font-weight: 750; }
+  .civic-vote-card aside button { border: 0; border-radius: 999px; padding: 12px 14px; color: #fff; background: var(--ink); font-size: 13px; font-weight: 800; }
+  .civic-vote-card aside button:disabled { color: var(--ink-soft); background: rgba(23,51,45,.12); }
+  .vas-image-toolbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin: -4px 0 16px; padding: 12px 14px; border-radius: 18px; background: rgba(255,255,255,.55); box-shadow: inset 0 0 0 1px rgba(46,121,107,.08); }
+  .vas-image-toolbar span { color: var(--ink); font-size: 14px; font-weight: 800; }
+  .vas-image-toolbar button { display: inline-flex; align-items: center; gap: 7px; border: 0; border-radius: 999px; padding: 9px 12px; color: var(--jade-dark); background: rgba(46,121,107,.09); cursor: pointer; font-size: 12px; font-weight: 800; }
   .vas-workspace { display: grid; grid-template-columns: minmax(0,1fr) 210px; overflow: hidden; border-radius: 24px; background: #17352e; }
   .heatmap-frame { position: relative; min-height: 490px; overflow: hidden; cursor: crosshair; }
   .heatmap-frame > img { width: 100%; height: 100%; object-fit: cover; }
@@ -363,15 +377,19 @@
   .vas-workspace > aside { display: flex; flex-direction: column; justify-content: center; padding: 24px 20px; color: rgba(255,255,255,.73); background: #17352e; }
   .heat-legend { display: flex; align-items: center; gap: 7px; font-size: 10px; }
   .heat-legend i { width: 65px; height: 7px; border-radius: 99px; background: linear-gradient(90deg,#4a82cb,#54aa86,#f0c147,#df3835); }
-  .vas-workspace aside > p { margin: 18px 0; font-size: 11px; line-height: 1.7; }
+  .vas-workspace aside > p { margin: 18px 0; font-size: 12px; line-height: 1.7; }
   .selection-count { display: flex; align-items: baseline; gap: 6px; margin: 8px 0 12px; }
   .selection-count b { color: #fff; font-size: 32px; }
   .selection-count span { font-size: 10px; }
-  .vas-workspace aside > button { display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: 999px; padding: 11px 13px; color: var(--ink); background: #fff; cursor: pointer; font-size: 10px; font-weight: 700; }
+  .vas-workspace aside > button { display: flex; align-items: center; justify-content: space-between; border: 0; border-radius: 999px; padding: 12px 14px; color: var(--ink); background: #fff; cursor: pointer; font-size: 12px; font-weight: 800; }
   .vas-workspace aside > button:disabled { opacity: .4; cursor: not-allowed; }
   .vas-workspace aside > .text-action { justify-content: center; margin-top: 8px; color: rgba(255,255,255,.76); background: transparent; font-weight: 500; }
+  .vote-unlock-mini { display: grid; gap: 3px; margin-top: 16px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,.12); }
+  .vote-unlock-mini span { color: rgba(255,255,255,.68); font-size: 11px; }
+  .vote-unlock-mini b { color: #fff; font-size: 22px; }
+  .vote-unlock-mini small { color: rgba(255,255,255,.62); font-size: 11px; line-height: 1.45; }
   .vas-panel > footer { display: flex; align-items: flex-start; gap: 7px; margin-top: 12px; color: var(--muted); }
-  .vas-panel > footer p { margin: 0; font-size: 10px; line-height: 1.55; }
+  .vas-panel > footer p { margin: 0; font-size: 11px; line-height: 1.6; }
 
   .evidence-panel { overflow: hidden; border-radius: 26px; background: rgba(249,252,249,.78); box-shadow: inset 0 1px 0 #fff, var(--shadow-soft); }
   .evidence-panel summary { display: flex; align-items: center; justify-content: space-between; padding: 19px 24px; cursor: pointer; list-style: none; }
@@ -487,6 +505,8 @@
   .scheme-detail-core aside { max-width: 320px; }
   .generation-card { grid-template-columns: 1fr; }
   .generation-image { min-height: 350px; }
+  .civic-vote-card { grid-template-columns: 1fr; }
+  .civic-vote-card aside { max-width: 360px; }
   .vas-workspace { grid-template-columns: 1fr; }
   .vas-workspace > aside { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
   .vas-workspace aside > p { margin: 0; }
@@ -527,6 +547,7 @@
   .scheme-actions > div { padding: 18px 0; border-top: 1px solid var(--line); }
   .scheme-actions > div + div { padding-left: 0; border-left: 0; }
   .vas-panel > header { display: grid; }
+  .vas-image-toolbar { align-items: flex-start; flex-direction: column; }
   .vas-metrics { flex-wrap: wrap; }
   .heatmap-frame { min-height: 380px; }
   .evidence-panel > div, .property-groups, .property-learning-grid, .interactive-groups, .project-grid, .method-flow, .boundary-note { grid-template-columns: 1fr; }
@@ -578,6 +599,10 @@
   .generation-copy { padding: 26px 20px; }
   .comparison-frame { height: 330px; }
   .vas-panel { padding: 20px 12px; }
+  .civic-vote-card { padding: 22px 18px; border-radius: 25px; }
+  .civic-vote-card h2 { font-size: 28px; }
+  .civic-vote-card p:not(.eyebrow) { font-size: 14px; }
+  .civic-vote-card aside { padding: 18px; }
   .vas-metrics span { min-width: 64px; }
   .heatmap-frame { min-height: 330px; }
   .vas-workspace > aside { grid-template-columns: 1fr; }
