@@ -142,7 +142,7 @@ function Hero() {
       <div className="hero-facts"><div><strong>15</strong><span>活力结构属性</span></div><div><strong>3</strong><span>可比较更新方向</span></div><div><strong>3M VAS</strong><span>公众视觉注意热图</span></div></div>
     </div>
     <figure className="hero-visual glass-shell">
-      <div className="hero-image-core"><img src="https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1500&q=86" alt="具有公共步道、树木和混凝土建筑界面的城市开放空间" /><div className="hero-scan-line" /></div>
+      <div className="hero-image-core"><div className="hero-city-scene" role="img" aria-label="具有公共步道、树木和混凝土建筑界面的城市开放空间"><span className="city-sky" /><span className="city-path" /><span className="city-block left" /><span className="city-block right" /><span className="city-trees" /></div><div className="hero-scan-line" /></div>
       <figcaption className="liquid-glass"><span><i />示例观察</span><b>中心并不来自一个地标，<br />而来自周围关系的共同支持。</b><div><small>强中心</small><small>厚边界</small><small>尺度层级</small></div></figcaption>
     </figure>
   </section>
@@ -252,7 +252,7 @@ function PropertiesPage() {
   return <main className="page-shell subpage"><header className="subpage-head"><div><p className="eyebrow"><span>15 Properties</span> Christopher Alexander</p><h1>不判断风格，<br /><span>判断空间是否有生命。</span></h1><p>15 个属性是一套观察整体关系的语言。它们帮助我们看见中心、边界、尺度、渐变和场所之间如何彼此支持。</p></div><div className="property-stamp"><strong>15</strong><span>每项 0–1<br />总分 15</span></div></header><section className="property-groups">{groups.map((group) => <article key={group}><h2>{group}</h2><div>{propertyDefinitions.filter((item) => item.group === group).map((item) => <section key={item.id}><span>{String(item.index).padStart(2, "0")}</span><p><b>{item.name}</b><small>{item.english}</small></p></section>)}</div></article>)}</section></main>
 }
 
-const sampleVasImage = "https://images.unsplash.com/photo-1494522358652-f30e61a60313?auto=format&fit=crop&w=1400&q=84"
+const sampleVasImage = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1400 900"><defs><linearGradient id="g" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#dcece5"/><stop offset=".56" stop-color="#f7faf7"/><stop offset="1" stop-color="#c6d9d1"/></linearGradient><linearGradient id="p" x1="0" x2="1"><stop offset="0" stop-color="#78938b"/><stop offset="1" stop-color="#edf4ef"/></linearGradient></defs><rect width="1400" height="900" fill="url(#g)"/><path d="M0 690 C220 570 410 570 620 650 C850 735 1040 705 1400 555 L1400 900 L0 900 Z" fill="url(#p)"/><g fill="#17332d" opacity=".72"><rect x="118" y="318" width="160" height="270" rx="16"/><rect x="1088" y="250" width="196" height="330" rx="18"/><rect x="760" y="360" width="180" height="210" rx="14"/></g><g fill="#2e796b" opacity=".85"><circle cx="395" cy="520" r="48"/><circle cx="480" cy="500" r="64"/><circle cx="1030" cy="548" r="58"/></g><path d="M130 670 C360 620 620 645 885 615 C1040 598 1200 560 1320 500" fill="none" stroke="#ffffff" stroke-width="28" stroke-linecap="round" opacity=".82"/><path d="M120 708 C430 670 720 710 1050 620" fill="none" stroke="#2e796b" stroke-width="7" opacity=".45"/></svg>`)}`
 function VasPage() {
   return <main className="page-shell subpage vas-page"><header className="subpage-head"><div><p className="eyebrow"><span>Visual Attention</span> 参考 3M VAS</p><h1>不是问“喜欢吗”，<br /><span>而是看“先看到哪里”。</span></h1><p>公众在改造效果图上标记最吸引视线的位置，系统汇总为从蓝到红的视觉注意热图，用来检查方案是否形成清晰而不过度竞争的中心。</p></div></header><VisualAttentionMap imageUrl={sampleVasImage} storageKey="public-demo" /></main>
 }
