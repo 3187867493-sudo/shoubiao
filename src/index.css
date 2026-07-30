@@ -363,7 +363,19 @@
   .civic-vote-card aside > i b { display: block; width: 100%; height: 100%; background: linear-gradient(90deg,#2e796b,#df7567); transform-origin: left; transition: transform 520ms var(--ease); }
   .civic-vote-card aside p { margin: 0; color: var(--ink); font-size: 14px; font-weight: 750; }
   .civic-vote-card aside button { border: 0; border-radius: 999px; padding: 12px 14px; color: #fff; background: var(--ink); font-size: 13px; font-weight: 800; }
+  .civic-vote-card aside button:not(:disabled) { cursor: pointer; transition: transform 360ms var(--ease), background 360ms var(--ease); }
+  .civic-vote-card aside button:not(:disabled):hover { background: var(--jade-dark); transform: translateY(-1px); }
   .civic-vote-card aside button:disabled { color: var(--ink-soft); background: rgba(23,51,45,.12); }
+  .civic-opinion-panel { display: grid; grid-template-columns: minmax(0, .88fr) minmax(360px, 1fr); gap: 24px; align-items: start; margin: -6px 0 24px; padding: 28px; border-radius: 30px; background: rgba(255,255,255,.7); }
+  .civic-opinion-panel h2 { margin: 15px 0 8px; color: var(--ink); font-size: clamp(25px,2.4vw,36px); line-height: 1.22; letter-spacing: -.035em; }
+  .civic-opinion-panel p { margin: 0; color: var(--ink-soft); font-size: 14px; line-height: 1.72; }
+  .opinion-form, .opinion-receipt { display: grid; gap: 12px; }
+  .opinion-form textarea { min-height: 150px; background: rgba(255,255,255,.68); }
+  .opinion-form > div, .opinion-receipt > div { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+  .opinion-form span { color: var(--ink-soft); font-size: 12px; }
+  .opinion-form button, .opinion-receipt button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; border: 0; border-radius: 999px; padding: 12px 16px; color: #fff; background: var(--ink); cursor: pointer; font-size: 13px; font-weight: 800; }
+  .opinion-receipt button:first-child { color: var(--jade-dark); background: rgba(46,121,107,.1); }
+  .opinion-receipt blockquote { margin: 0; border-radius: 22px; padding: 20px; color: var(--ink); background: var(--p1-wash); font-size: 15px; line-height: 1.76; }
   .vas-image-toolbar { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin: -4px 0 16px; padding: 12px 14px; border-radius: 18px; background: rgba(255,255,255,.55); box-shadow: inset 0 0 0 1px rgba(46,121,107,.08); }
   .vas-image-toolbar span { color: var(--ink); font-size: 14px; font-weight: 800; }
   .vas-image-toolbar button { display: inline-flex; align-items: center; gap: 7px; border: 0; border-radius: 999px; padding: 9px 12px; color: var(--jade-dark); background: rgba(46,121,107,.09); cursor: pointer; font-size: 12px; font-weight: 800; }
@@ -520,6 +532,7 @@
   .generation-image { min-height: 350px; }
   .civic-vote-card { grid-template-columns: 1fr; }
   .civic-vote-card aside { max-width: 360px; }
+  .civic-opinion-panel { grid-template-columns: 1fr; }
   .vas-workspace { grid-template-columns: 1fr; }
   .vas-workspace > aside { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 20px; }
   .vas-workspace aside > p { margin: 0; }
@@ -617,6 +630,9 @@
   .civic-vote-card h2 { font-size: 28px; }
   .civic-vote-card p:not(.eyebrow) { font-size: 14px; }
   .civic-vote-card aside { padding: 18px; }
+  .civic-opinion-panel { padding: 22px 18px; border-radius: 25px; }
+  .opinion-form > div, .opinion-receipt > div { align-items: stretch; flex-direction: column; }
+  .opinion-form button, .opinion-receipt button { width: 100%; }
   .vas-metrics span { min-width: 64px; }
   .heatmap-frame { min-height: 330px; }
   .vas-workspace > aside { grid-template-columns: 1fr; }

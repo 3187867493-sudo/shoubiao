@@ -374,7 +374,18 @@ const vasCitySamples = [
 function VasPage() {
   const [sampleIndex, setSampleIndex] = useState(0)
   const [publicCount, setPublicCount] = useState(0)
-  useEffect(() => { setPublicCount(Number(localStorage.getItem("qigou-vas-public-count") || "0")) }, [])
+  const [opinionOpen, setOpinionOpen] = useState(false)
+  const [opinionText, setOpinionText] = useState("")
+  const [submittedOpinion, setSubmittedOpinion] = useState<{ id: string; text: string; createdAt: string; sample: string } | null>(null)
+  useEffect(() => {
+    setPublicCount(Number(localStorage.getItem("qigou-vas-public-count") || "0"))
+    try {
+      const saved = JSON.parse(localStorage.getItem("qigou-civic-opinion-latest") || "null")
+      if (saved?.id) setSubmittedOpinion(saved)
+    } catch {
+      setSubmittedOpinion(null)
+    }
+  }, [])
   const sample = vasCitySamples[sampleIndex % vasCitySamples.length]
   const addParticipation = () => {
     const next = publicCount + 1
@@ -382,7 +393,37 @@ function VasPage() {
     localStorage.setItem("qigou-vas-public-count", String(next))
   }
   const unlocked = publicCount >= 10
-  return <main className="page-shell subpage vas-page"><header className="subpage-head"><div><p className="eyebrow"><span>Visual Attention</span> 参考 3M VAS</p><h1>不是问“喜欢吗”，<br /><span>而是看“先看到哪里”。</span></h1><p>公众在真实城市图片与改造效果图上标记最吸引视线的位置，系统汇总为从蓝到红的视觉注意热图，用来把人的真实感受纳入建筑美学体系与城市更新讨论。</p></div></header><section className="civic-vote-card liquid-glass"><div><p className="eyebrow"><span>Participation</span> 真实改造投票权</p><h2>完成 10 次视线测试，解锁真实空间的方案投票资格。</h2><p>这个机制不是为了“刷点击”，而是让用户知道自己的视线数据会进入方案比较：哪些地方真的吸引人、哪些中心过弱、哪些理论判断需要被公众感受校正。</p></div><aside><strong>{Math.min(publicCount, 10)}<span>/10</span></strong><i><b style={{ transform: `scaleX(${Math.min(publicCount, 10) / 10})` }} /></i><p>{unlocked ? "已获得意见提交资格" : `还需 ${10 - publicCount} 次测试`}</p><button disabled={!unlocked}>{unlocked ? "提交真实改造意见" : "资格待解锁"}</button></aside></section><VisualAttentionMap imageUrl={sample.image} storageKey={`public-demo-${sample.id}`} imageLabel={sample.label} onNextImage={() => setSampleIndex((index) => index + 1)} onAfterSubmit={addParticipation}><div className="vote-unlock-mini"><span>共建资格</span><b>{Math.min(publicCount, 10)}/10</b><small>{unlocked ? "已解锁投票入口" : "提交本轮后累计一次"}</small></div></VisualAttentionMap></main>
+  const submitOpinion = () => {
+    if (!unlocked) return
+    const next = {
+      id: `civic-${Date.now().toString(36).slice(-6)}`,
+      text: opinionText.trim() || "我支持把公众视觉注意热图作为方案比较依据，并希望优先优化真实使用者最容易注意到、最愿意停留的空间中心。",
+      createdAt: new Date().toISOString(),
+      sample: sample.label,
+    }
+    setSubmittedOpinion(next)
+    setOpinionOpen(false)
+    setOpinionText("")
+    localStorage.setItem("qigou-civic-opinion-latest", JSON.stringify(next))
+    try {
+      const saved = JSON.parse(localStorage.getItem("qigou-civic-opinions") || "[]")
+      const list = Array.isArray(saved) ? saved : []
+      localStorage.setItem("qigou-civic-opinions", JSON.stringify([next, ...list].slice(0, 20)))
+    } catch {
+      localStorage.setItem("qigou-civic-opinions", JSON.stringify([next]))
+    }
+  }
+  const exportOpinion = () => {
+    if (!submittedOpinion) return
+    const lines = ["栖构 Urban Aliveness｜真实改造意见提交回执", `意见编号：${submittedOpinion.id}`, `提交时间：${new Date(submittedOpinion.createdAt).toLocaleString("zh-CN")}`, `关联样本：${submittedOpinion.sample}`, `视线测试次数：${publicCount}`, "", "意见内容：", submittedOpinion.text]
+    const url = URL.createObjectURL(new Blob([lines.join("\n")], { type: "text/plain;charset=utf-8" }))
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `真实改造意见-${submittedOpinion.id}.txt`
+    link.click()
+    URL.revokeObjectURL(url)
+  }
+  return <main className="page-shell subpage vas-page"><header className="subpage-head"><div><p className="eyebrow"><span>Visual Attention</span> 参考 3M VAS</p><h1>不是问“喜欢吗”，<br /><span>而是看“先看到哪里”。</span></h1><p>公众在真实城市图片与改造效果图上标记最吸引视线的位置，系统汇总为从蓝到红的视觉注意热图，用来把人的真实感受纳入建筑美学体系与城市更新讨论。</p></div></header><section className="civic-vote-card liquid-glass"><div><p className="eyebrow"><span>Participation</span> 真实改造投票权</p><h2>完成 10 次视线测试，解锁真实空间的方案投票资格。</h2><p>这个机制不是为了“刷点击”，而是让用户知道自己的视线数据会进入方案比较：哪些地方真的吸引人、哪些中心过弱、哪些理论判断需要被公众感受校正。</p></div><aside><strong>{Math.min(publicCount, 10)}<span>/10</span></strong><i><b style={{ transform: `scaleX(${Math.min(publicCount, 10) / 10})` }} /></i><p>{unlocked ? "已获得意见提交资格" : `还需 ${10 - publicCount} 次测试`}</p><button disabled={!unlocked} onClick={() => setOpinionOpen(true)}>{unlocked ? "提交真实改造意见" : "资格待解锁"}</button></aside></section>{(opinionOpen || submittedOpinion) && <section className="civic-opinion-panel liquid-glass" id="civic-opinion"><div><p className="eyebrow"><span>Civic Input</span> 真实空间意见提交</p><h2>{submittedOpinion && !opinionOpen ? "意见已进入本机共评记录。" : "写下你希望影响真实改造的意见。"}</h2><p>{submittedOpinion && !opinionOpen ? `编号 ${submittedOpinion.id} · ${new Date(submittedOpinion.createdAt).toLocaleString("zh-CN")}` : "这里先作为演示原型保存在浏览器本地。后续若接入街道办或城市更新局，可替换为实名账号与后端审核流程。"}</p></div>{submittedOpinion && !opinionOpen ? <aside className="opinion-receipt"><blockquote>{submittedOpinion.text}</blockquote><div><button onClick={() => setOpinionOpen(true)}>修改意见</button><button onClick={exportOpinion}>导出回执 <Icon name="download" size={14} /></button></div></aside> : <aside className="opinion-form"><textarea value={opinionText} maxLength={420} onChange={(event) => setOpinionText(event.target.value)} placeholder="例如：希望优先把热区周边改造成可停留、有树荫、有清晰导视的公共节点，而不是只增加装饰性景观。" /><div><span>{opinionText.length}/420</span><button onClick={submitOpinion}>提交意见 <Icon name="arrow" size={14} /></button></div></aside>}</section>}<VisualAttentionMap imageUrl={sample.image} storageKey={`public-demo-${sample.id}`} imageLabel={sample.label} onNextImage={() => setSampleIndex((index) => index + 1)} onAfterSubmit={addParticipation}><div className="vote-unlock-mini"><span>共建资格</span><b>{Math.min(publicCount, 10)}/10</b><small>{unlocked ? "已解锁投票入口" : "提交本轮后累计一次"}</small></div></VisualAttentionMap></main>
 }
 
 function MethodPage() {
