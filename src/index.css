@@ -201,7 +201,7 @@
   .agent-empty-dynamic .eyebrow span { color: var(--jade-dark); background: rgba(255,255,255,.48); }
   .agent-empty-dynamic h2 em { color: var(--jade); }
   .agent-empty-dynamic > .empty-copy > p:not(.eyebrow) { max-width: 570px; color: var(--ink-soft); font-size: 16px; }
-  .dynamic-orbit { z-index: 2; right: -22px; bottom: 18px; width: 470px; height: 470px; border-color: rgba(46,121,107,.08); background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.2), rgba(255,255,255,.06) 44%, rgba(255,255,255,.02) 64%, transparent 72%); transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transform-style: preserve-3d; transition: transform 180ms var(--ease); }
+  .dynamic-orbit { z-index: 2; right: 52px; bottom: 46px; width: 470px; height: 470px; border-color: rgba(46,121,107,.08); background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.2), rgba(255,255,255,.06) 44%, rgba(255,255,255,.02) 64%, transparent 72%); transform: rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg)); transform-style: preserve-3d; transition: transform 180ms var(--ease); }
   .dynamic-orbit::before, .dynamic-orbit::after { content: ""; position: absolute; inset: 30px; border-radius: 47% 53% 52% 48% / 44% 48% 52% 56%; pointer-events: none; background: radial-gradient(circle at 34% 30%, rgba(255,255,255,.38), transparent 26%), linear-gradient(135deg, rgba(255,255,255,.18), rgba(255,255,255,.04)); box-shadow: inset 0 1px 0 rgba(255,255,255,.56), inset 0 -18px 34px rgba(46,121,107,.065), 0 0 0 1px rgba(255,255,255,.26); backdrop-filter: blur(5px) saturate(1.45); -webkit-backdrop-filter: blur(5px) saturate(1.45); animation: liquid-wave 8.5s ease-in-out infinite; transform: translateZ(18px); }
   .dynamic-orbit::after { inset: 84px; opacity: .54; animation-duration: 6.8s; animation-direction: reverse; transform: translateZ(38px) rotate(14deg); }
   .dynamic-orbit i { width: 13px; height: 13px; background: rgba(46,121,107,.3); box-shadow: 0 0 0 9px rgba(255,255,255,.3), 0 0 22px rgba(46,121,107,.16); transform: rotate(var(--angle)) translateX(218px) rotate(calc(var(--angle) * -1)); animation: orbit-dot 5.8s ease-in-out infinite; animation-delay: calc(var(--i) * -150ms); }
@@ -576,7 +576,7 @@
   .brief-panel { position: relative; top: 0; max-height: none; }
   .agent-empty, .running-stage { min-height: 620px; }
   .empty-orbit { opacity: .55; }
-  .dynamic-orbit { right: -80px; bottom: 80px; width: 390px; height: 390px; opacity: .72; }
+  .dynamic-orbit { right: -30px; bottom: 82px; width: 390px; height: 390px; opacity: .72; }
   .dynamic-orbit i { transform: rotate(var(--angle)) translateX(178px) rotate(calc(var(--angle) * -1)); }
   .principle-cloud { inset: 0; }
   .principle-cloud b { --radius: 124px; max-width: 96px; font-size: 9.8px; padding: 6px 8px; transform: translate(-50%, -50%); }
@@ -625,7 +625,7 @@
   .agent-empty h2 { font-size: 42px; }
   .agent-empty-dynamic { min-height: 680px; }
   .agent-empty-dynamic > .empty-copy > p:not(.eyebrow) { font-size: 14px; }
-  .dynamic-orbit { right: -96px; bottom: 92px; width: 360px; height: 360px; }
+  .dynamic-orbit { right: -68px; bottom: 92px; width: 360px; height: 360px; }
   .dynamic-orbit i { width: 10px; height: 10px; transform: rotate(var(--angle)) translateX(162px) rotate(calc(var(--angle) * -1)); }
   .principle-cloud { inset: 0; }
   .principle-cloud b { --radius: 112px; max-width: 85px; font-size: 8.8px; padding: 5px 7px; transform: translate(-50%, -50%); }

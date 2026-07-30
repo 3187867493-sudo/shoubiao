@@ -221,7 +221,7 @@ function BriefPanel(props: BriefProps) {
 }
 
 function EmptyStage() {
-  return <section className="agent-empty reveal"><div className="empty-orbit" aria-hidden="true">{Array.from({ length: 15 }).map((_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}</div><p className="eyebrow"><span>02</span> 城市治疗引擎</p><h2>诊断不是终点，<br /><em>空间改变才是。</em></h2><p>系统会把照片证据转译为 15 项活力结构评分，并同时提出三个不同干预尺度的方案。选择其中一套后，再生成同一场地的改造效果图。</p><div className="empty-flow"><div><b>Diagnose</b><span>照片与 15 属性</span></div><i /><div><b>Compare</b><span>三套更新方向</span></div><i /><div><b>Heal</b><span>效果图与 3M VAS</span></div></div></section>
+  return <section className="agent-empty reveal"><div className="empty-orbit" aria-hidden="true">{Array.from({ length: 15 }).map((_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}</div><p className="eyebrow"><span>02</span> 城市治疗引擎</p><h2>诊断不是终点，<br /><em>空间改变才是。</em></h2><p>系统会把照片证据转译为 15 项活力结构评分，<br />并同时提出三个不同干预尺度的方案。<br />选择其中一套后，再生成同一场地的改造效果图。</p><div className="empty-flow"><div><b>Diagnose</b><span>照片与 15 属性</span></div><i /><div><b>Compare</b><span>三套更新方向</span></div><i /><div><b>Heal</b><span>效果图与 3M VAS</span></div></div></section>
 }
 
 function DynamicEmptyStage() {
@@ -237,7 +237,7 @@ function DynamicEmptyStage() {
     <div className="empty-copy">
       <p className="eyebrow"><span>02</span> 城市治疗引擎</p>
       <h2>诊断不是终点，<br /><em>空间改变才是。</em></h2>
-      <p>系统会把照片证据转译为 15 项活力结构评分，并同时提出三个不同干预尺度的方案。选择其中一套后，再生成同一场地的改造效果图。</p>
+      <p>系统会把照片证据转译为 15 项活力结构评分，<br />并同时提出三个不同干预尺度的方案。<br />选择其中一套后，再生成同一场地的改造效果图。</p>
     </div>
     <div className="empty-orbit dynamic-orbit" style={{ "--rx": `${tilt.rx}deg`, "--ry": `${tilt.ry}deg` } as CSSProperties} aria-label="亚历山大十五大美学原则动态展示">
       {Array.from({ length: 15 }).map((_, index) => <i key={index} style={{ "--i": index } as CSSProperties} />)}
